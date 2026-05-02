@@ -53,7 +53,7 @@ void app.whenReady().then(() => {
   sessionManager = new SessionManager(paths, logger);
   apiKeyStore = new ApiKeyStore(paths);
   settingsStore = new SettingsStore(paths);
-  syncService = new RegulationSyncService(db, logger);
+  syncService = new RegulationSyncService(db, logger, paths);
   searchService = new SearchService(db);
   geminiClient = new GeminiClient();
 
@@ -94,6 +94,15 @@ function registerIpcHandlers(): void {
   );
 
   ipcMain.handle("sync:targets", async () => wrap(() => syncService.getTargets()));
+  ipcMain.handle("sync:refreshTargets", async () =>
+    wrap(async () => {
+      const authStatus = await sessionManager.checkStatus();
+      if (authStatus.status !== "AUTHENTICATED") {
+        throw new AppError(authStatus.status, authStatus.message);
+      }
+      return syncService.refreshTargets();
+    }),
+  );
   ipcMain.handle("sync:start", async (event, seqHistories?: number[]) =>
     wrap(async () => {
       const authStatus = await sessionManager.checkStatus();
@@ -212,7 +221,11 @@ function selectTargets(seqHistories?: number[]): RegulationTarget[] {
   const allTargets = syncService.getTargets();
   if (!seqHistories || seqHistories.length === 0) return allTargets;
   const selected = new Set(seqHistories);
-  return allTargets.filter((target) => selected.has(target.seqHistory));
+  const targets = allTargets.filter((target) => selected.has(target.seqHistory));
+  if (targets.length === 0) {
+    throw new AppError("SYNC_FAILED", "동기화할 규정이 선택되지 않았습니다.");
+  }
+  return targets;
 }
 
 function assertModelId(modelId: AiModelId): void {

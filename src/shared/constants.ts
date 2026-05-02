@@ -26,19 +26,22 @@ export const PREVIEW_MODEL_WARNING =
 
 export const MVP_REGULATION_TARGETS = [
   {
-    regulationName: "고려대학교 학칙",
-    seqHistory: 2446,
-    sourceUrl: `${KOREA_POLICY_CONTENT_URL}?SEQ_HISTORY=2446`,
+    regulationName: "2-1-1 고려대학교 학칙",
+    seq: 15,
+    seqHistory: 2502,
+    sourceUrl: `${KOREA_POLICY_CONTENT_URL}?SEQ=15&SEQ_HISTORY=2502`,
   },
   {
-    regulationName: "학사운영 규정",
+    regulationName: "2-1-2 학사운영 규정",
+    seq: 17,
     seqHistory: 2482,
-    sourceUrl: `${KOREA_POLICY_CONTENT_URL}?SEQ_HISTORY=2482`,
+    sourceUrl: `${KOREA_POLICY_CONTENT_URL}?SEQ=17&SEQ_HISTORY=2482`,
   },
   {
-    regulationName: "대학원학칙",
+    regulationName: "2-1-50 대학원학칙",
+    seq: 20,
     seqHistory: 2447,
-    sourceUrl: `${KOREA_POLICY_CONTENT_URL}?SEQ_HISTORY=2447`,
+    sourceUrl: `${KOREA_POLICY_CONTENT_URL}?SEQ=20&SEQ_HISTORY=2447`,
   },
 ] as const;
 

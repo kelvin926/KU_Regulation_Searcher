@@ -24,6 +24,7 @@ export interface KuRegulationApi {
   };
   sync: {
     targets: () => Promise<ApiResult<RegulationTarget[]>>;
+    refreshTargets: () => Promise<ApiResult<RegulationTarget[]>>;
     start: (seqHistories?: number[]) => Promise<ApiResult<SyncSummary>>;
     stop: () => Promise<ApiResult<boolean>>;
     onProgress: (callback: (progress: SyncProgress) => void) => () => void;

@@ -7,6 +7,8 @@ export interface RegulationTarget {
   regulationName: string;
   seqHistory: number;
   sourceUrl: string;
+  seq?: number;
+  category?: string;
 }
 
 export interface RegulationRecord {

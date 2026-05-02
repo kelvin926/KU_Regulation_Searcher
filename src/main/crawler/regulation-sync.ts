@@ -1,25 +1,49 @@
 import { AppError } from "../../shared/errors";
+import fs from "node:fs";
 import {
   DEFAULT_REQUEST_DELAY_MS,
   KOREA_POLICY_CONTENT_URL,
   MVP_REGULATION_TARGETS,
 } from "../../shared/constants";
 import type { RegulationTarget, SyncFailure, SyncProgress, SyncSummary } from "../../shared/types";
+import type { AppPaths } from "../app-paths";
 import type { DatabaseService } from "../db/database";
 import { fetchWithSession } from "./fetch-with-session";
+import { fetchRegulationTargetsFromSite } from "./regulation-targets";
 import { parseRegulationHtml } from "./regulation-parser";
 import type { Logger } from "../logs/logger";
 
 export class RegulationSyncService {
   private abortController: AbortController | null = null;
+  private cachedTargets: RegulationTarget[] | null = null;
 
   constructor(
     private readonly db: DatabaseService,
     private readonly logger: Logger,
+    private readonly paths: AppPaths,
   ) {}
 
   getTargets(): RegulationTarget[] {
-    return MVP_REGULATION_TARGETS.map((target) => ({ ...target }));
+    if (this.cachedTargets) return cloneTargets(this.cachedTargets);
+
+    const diskTargets = this.loadCachedTargets();
+    if (diskTargets.length > 0) {
+      this.cachedTargets = diskTargets;
+      return cloneTargets(diskTargets);
+    }
+
+    return getFallbackTargets();
+  }
+
+  async refreshTargets(): Promise<RegulationTarget[]> {
+    const targets = await fetchRegulationTargetsFromSite();
+    if (targets.length === 0) {
+      throw new AppError("SYNC_FAILED", "규정 목록을 찾지 못했습니다.");
+    }
+
+    this.cachedTargets = targets;
+    this.saveCachedTargets(targets);
+    return cloneTargets(targets);
   }
 
   stop(): void {
@@ -103,7 +127,7 @@ export class RegulationSyncService {
   }
 
   private async syncOne(target: RegulationTarget): Promise<void> {
-    const url = `${KOREA_POLICY_CONTENT_URL}?SEQ_HISTORY=${target.seqHistory}`;
+    const url = target.sourceUrl || `${KOREA_POLICY_CONTENT_URL}?SEQ_HISTORY=${target.seqHistory}`;
     const fetchedAt = new Date().toISOString();
     const result = await fetchWithSession(url);
 
@@ -126,6 +150,28 @@ export class RegulationSyncService {
       parsed,
       result.text,
     );
+  }
+
+  private loadCachedTargets(): RegulationTarget[] {
+    if (!fs.existsSync(this.paths.targetCachePath)) return [];
+
+    try {
+      const parsed = JSON.parse(fs.readFileSync(this.paths.targetCachePath, "utf8")) as unknown;
+      if (!Array.isArray(parsed)) return [];
+      const targets = parsed
+        .map((item) => normalizeTarget(item))
+        .filter((target): target is RegulationTarget => target !== null);
+      return targets.length > 0 ? sortTargets(targets) : [];
+    } catch (error) {
+      this.logger.warn("Failed to load cached regulation targets", {
+        errorType: error instanceof Error ? error.name : "unknown",
+      });
+      return [];
+    }
+  }
+
+  private saveCachedTargets(targets: RegulationTarget[]): void {
+    fs.writeFileSync(this.paths.targetCachePath, JSON.stringify(sortTargets(targets), null, 2), "utf8");
   }
 }
 
@@ -161,5 +207,36 @@ function delay(ms: number, signal: AbortSignal): Promise<void> {
       },
       { once: true },
     );
+  });
+}
+
+function getFallbackTargets(): RegulationTarget[] {
+  return MVP_REGULATION_TARGETS.map((target) => ({ ...target }));
+}
+
+function cloneTargets(targets: RegulationTarget[]): RegulationTarget[] {
+  return targets.map((target) => ({ ...target }));
+}
+
+function normalizeTarget(value: unknown): RegulationTarget | null {
+  if (!value || typeof value !== "object") return null;
+  const record = value as Partial<RegulationTarget>;
+  if (typeof record.regulationName !== "string" || record.regulationName.trim().length === 0) return null;
+  if (!Number.isSafeInteger(record.seqHistory) || Number(record.seqHistory) <= 0) return null;
+  if (typeof record.sourceUrl !== "string" || record.sourceUrl.trim().length === 0) return null;
+  return {
+    regulationName: record.regulationName,
+    seqHistory: Number(record.seqHistory),
+    sourceUrl: record.sourceUrl,
+    seq: Number.isSafeInteger(record.seq) ? Number(record.seq) : undefined,
+    category: typeof record.category === "string" ? record.category : undefined,
+  };
+}
+
+function sortTargets(targets: RegulationTarget[]): RegulationTarget[] {
+  return [...targets].sort((a, b) => {
+    const byCategory = (a.category ?? "").localeCompare(b.category ?? "", "ko-KR");
+    if (byCategory !== 0) return byCategory;
+    return a.regulationName.localeCompare(b.regulationName, "ko-KR");
   });
 }

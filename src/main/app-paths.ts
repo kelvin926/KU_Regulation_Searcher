@@ -11,6 +11,7 @@ export interface AppPaths {
   logPath: string;
   configDir: string;
   settingsPath: string;
+  targetCachePath: string;
 }
 
 export function getAppPaths(): AppPaths {
@@ -29,6 +30,7 @@ export function getAppPaths(): AppPaths {
     logPath: path.join(logsDir, "app.log"),
     configDir,
     settingsPath: path.join(configDir, "settings.json"),
+    targetCachePath: path.join(configDir, "regulation-targets.json"),
   };
 }
 

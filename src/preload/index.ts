@@ -26,6 +26,7 @@ const api: KuRegulationApi = {
   },
   sync: {
     targets: (): Promise<ApiResult<RegulationTarget[]>> => ipcRenderer.invoke("sync:targets"),
+    refreshTargets: (): Promise<ApiResult<RegulationTarget[]>> => ipcRenderer.invoke("sync:refreshTargets"),
     start: (seqHistories?: number[]): Promise<ApiResult<SyncSummary>> => ipcRenderer.invoke("sync:start", seqHistories),
     stop: (): Promise<ApiResult<boolean>> => ipcRenderer.invoke("sync:stop"),
     onProgress: (callback: (progress: SyncProgress) => void): (() => void) => {

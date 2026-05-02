@@ -8,16 +8,22 @@ export interface SessionFetchResult {
   text: string;
 }
 
-export async function fetchWithSession(url: string): Promise<SessionFetchResult> {
+export interface SessionFetchOptions {
+  method?: "GET" | "POST";
+  headers?: Record<string, string>;
+}
+
+export async function fetchWithSession(url: string, options: SessionFetchOptions = {}): Promise<SessionFetchResult> {
   const cookieHeader = await buildCookieHeader(url);
 
   try {
     const response = await net.fetch(url, {
-      method: "GET",
+      method: options.method ?? "GET",
       redirect: "follow",
       headers: {
         Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        "User-Agent": "KU-Regulation-Assistant/0.1.0",
+        "User-Agent": "KU-Regulation-Assistant/0.2.0",
+        ...(options.headers ?? {}),
         ...(cookieHeader ? { Cookie: cookieHeader } : {}),
       },
     });

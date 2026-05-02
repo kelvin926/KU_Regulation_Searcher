@@ -1,6 +1,6 @@
 {
   "name": "ku-regulation-searcher",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "고려대학교 규정 로컬 검색 및 Gemini RAG Windows GUI 앱",
   "author": "kelvin926",
   "license": "MIT",
@@ -69,9 +69,11 @@
     "nsis": {
       "oneClick": false,
       "perMachine": false,
+      "allowElevation": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
+      "deleteAppDataOnUninstall": false,
       "shortcutName": "KU Regulation Assistant"
     }
   }

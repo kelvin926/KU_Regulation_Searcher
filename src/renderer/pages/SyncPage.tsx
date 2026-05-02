@@ -1,5 +1,5 @@
-import { PauseCircle, RefreshCw, RotateCw } from "lucide-react";
-import { useEffect, useState } from "react";
+import { CheckSquare, PauseCircle, RefreshCw, RotateCw, Square } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import type { DbStats, RegulationTarget, SyncFailure, SyncProgress } from "../../shared/types";
 import { getErrorMessage, unwrap } from "../lib/api";
 import { WarningBox } from "../components/WarningBox";
@@ -11,6 +11,18 @@ export function SyncPage() {
   const [stats, setStats] = useState<DbStats | null>(null);
   const [failures, setFailures] = useState<SyncFailure[]>([]);
   const [message, setMessage] = useState<string | null>(null);
+  const [filter, setFilter] = useState("");
+  const [loadingTargets, setLoadingTargets] = useState(false);
+  const visibleTargets = useMemo(() => {
+    const query = filter.trim().toLowerCase();
+    if (!query) return targets;
+    return targets.filter(
+      (target) =>
+        target.regulationName.toLowerCase().includes(query) ||
+        target.category?.toLowerCase().includes(query) ||
+        String(target.seqHistory).includes(query),
+    );
+  }, [filter, targets]);
 
   useEffect(() => {
     void refresh();
@@ -20,9 +32,33 @@ export function SyncPage() {
   async function refresh() {
     const loadedTargets = unwrap(await window.kuRegulation.sync.targets());
     setTargets(loadedTargets);
-    setSelected(new Set(loadedTargets.map((target) => target.seqHistory)));
+    setSelected((previous) => {
+      if (previous.size === 0 && loadedTargets.length <= 3) {
+        return new Set(loadedTargets.map((target) => target.seqHistory));
+      }
+      const available = new Set(loadedTargets.map((target) => target.seqHistory));
+      return new Set(Array.from(previous).filter((seqHistory) => available.has(seqHistory)));
+    });
     setStats(unwrap(await window.kuRegulation.db.stats()));
     setFailures(unwrap(await window.kuRegulation.db.failures()));
+  }
+
+  async function refreshTargetList() {
+    setLoadingTargets(true);
+    setMessage(null);
+    try {
+      const loadedTargets = unwrap(await window.kuRegulation.sync.refreshTargets());
+      setTargets(loadedTargets);
+      setSelected((previous) => {
+        const available = new Set(loadedTargets.map((target) => target.seqHistory));
+        return new Set(Array.from(previous).filter((seqHistory) => available.has(seqHistory)));
+      });
+      setMessage(`${loadedTargets.length}개 규정 목록을 불러왔습니다. 필요한 규정만 선택해서 동기화하세요.`);
+    } catch (error) {
+      setMessage(getErrorMessage(error));
+    } finally {
+      setLoadingTargets(false);
+    }
   }
 
   async function start(seqHistories?: number[]) {
@@ -44,21 +80,44 @@ export function SyncPage() {
           <span className="status-pill">{progress?.status ?? "idle"}</span>
         </div>
         <div className="button-row">
-          <button type="button" onClick={() => start()}>
+          <button type="button" disabled={loadingTargets} onClick={refreshTargetList}>
             <RotateCw size={17} />
-            전체 규정 동기화
+            규정 목록 새로고침
           </button>
-          <button type="button" onClick={() => start(Array.from(selected))}>
+          <button type="button" disabled={selected.size === 0} onClick={() => start(Array.from(selected))}>
             <RefreshCw size={17} />
             선택 규정 동기화
+          </button>
+          <button
+            type="button"
+            className="secondary"
+            onClick={() => setSelected(new Set(visibleTargets.map((target) => target.seqHistory)))}
+          >
+            <CheckSquare size={17} />
+            표시 목록 전체 선택
+          </button>
+          <button type="button" className="secondary" onClick={() => setSelected(new Set())}>
+            <Square size={17} />
+            선택 해제
           </button>
           <button type="button" className="secondary" onClick={() => window.kuRegulation.sync.stop()}>
             <PauseCircle size={17} />
             동기화 중지
           </button>
         </div>
+        <div className="target-toolbar">
+          <input
+            className="target-filter"
+            value={filter}
+            onChange={(event) => setFilter(event.currentTarget.value)}
+            placeholder="규정명, 분류, SEQ_HISTORY로 검색"
+          />
+          <span className="meta-line">
+            전체 {targets.length}개 · 표시 {visibleTargets.length}개 · 선택 {selected.size}개
+          </span>
+        </div>
         <div className="target-list">
-          {targets.map((target) => (
+          {visibleTargets.map((target) => (
             <label key={target.seqHistory} className="target-item">
               <input
                 type="checkbox"
@@ -71,9 +130,14 @@ export function SyncPage() {
                 }}
               />
               <span>{target.regulationName}</span>
-              <code>SEQ_HISTORY {target.seqHistory}</code>
+              <span className="target-meta">
+                {target.category && <span>{target.category}</span>}
+                {target.seq && <code>SEQ {target.seq}</code>}
+                <code>SEQ_HISTORY {target.seqHistory}</code>
+              </span>
             </label>
           ))}
+          {visibleTargets.length === 0 && <div className="empty-panel">표시할 규정이 없습니다.</div>}
         </div>
         {progress && (
           <div className="progress-block">

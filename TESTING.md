@@ -10,14 +10,14 @@ Mac-specific behavior is not the release criterion for this MVP.
 - OS: Windows 11
 - Repo: `https://github.com/kelvin926/KU_Regulation_Searcher`
 - Branch: `main`
-- Installer: `release\KU-Regulation-Setup-0.1.0.exe`
-- Installer size: 104,424,528 bytes, about 99.6 MiB
+- Installer: `release\KU-Regulation-Setup-0.2.0.exe`
+- Installer size: 104,493,003 bytes, about 99.7 MiB
 - AppData path: `%APPDATA%\KU Regulation Assistant\`
 
 ## Command validation
 
 - `npm install`: passed
-- `npm test`: passed, 4 test files and 8 tests
+- `npm test`: passed, 5 test files and 10 tests
 - `npm run build`: passed
 - `npm run rebuild:electron`: passed
 - `npm run dist:win`: passed
@@ -29,16 +29,19 @@ Mac-specific behavior is not the release criterion for this MVP.
 - `better-sqlite3` is rebuilt with `electron-rebuild -f -w better-sqlite3` so `npm test` does not leave the native module compiled for the wrong ABI before Electron launch.
 - Windows packaging disables executable resource signing/editing with `win.signAndEditExecutable=false` because the unsigned MVP should not require winCodeSign symlink extraction privileges.
 - Vite uses relative packaged asset paths via `base: "./"` so the installed app loads renderer assets from `file://.../resources/app.asar/dist/renderer/assets/...`.
+- NSIS keeps AppData on uninstall/update with `deleteAppDataOnUninstall=false`, so login cookies, encrypted API key, settings, DB, and target-list cache are not removed by a version update.
 
 ## Installer validation
 
-- Per-user silent install: passed
+- Per-user silent install/update: passed
 - Admin permission required: no
 - Install path: `%LOCALAPPDATA%\Programs\KU Regulation Assistant\`
 - Start menu shortcut: created
 - Desktop shortcut: created
 - Installed app launch without Node.js runtime: passed
 - App relaunch: passed
+- Update from the previous local install without uninstall: passed
+- AppData persisted after update: `cookies.enc`, `gemini-api-key.enc`, and `settings.json` remained present
 - Uninstall via generated uninstaller: passed
 - Reinstall: passed
 - SmartScreen: not shown during local silent validation; the installer is unsigned, so a SmartScreen warning is still possible on other PCs.
@@ -50,6 +53,8 @@ Created under `%APPDATA%\KU Regulation Assistant\`:
 - `data\ku-policy.sqlite`
 - `auth\`
 - `logs\`
+- `config\settings.json`
+- `config\regulation-targets.json` after a full regulation-list refresh
 
 No SQLite DB, auth/session file, log file, `.env`, or installer executable was created as a tracked repo file. The `release\` directory remains ignored and must not be committed.
 
@@ -100,6 +105,29 @@ Article parsing spot checks:
 - `76의2`: normalized to `제76조의2` in app search
 - `제1조의2`: no standalone article found in the synced MVP data
 - `부칙`: no standalone article found in the synced MVP data
+
+## Regulation list refresh validation
+
+Version `0.2.0` adds full current-regulation list refresh and selected sync.
+
+- Stored login cookies loaded through Electron `safeStorage`: passed
+- Official AJAX tree endpoint used: `/lmxsrv/law/lawTreeNodes.do`
+- Official list endpoint used: `/lmxsrv/law/lawListManager_areaC.do`
+- Folder list pagination: verified; list pages contain 10 regulations per page and are fetched until no new target appears
+- Refreshed target count: 1,277 current regulation targets in the logged-in session
+- Core targets found in refreshed list:
+  - `2-1-1 고려대학교 학칙`, `SEQ=15`, `SEQ_HISTORY=2502`
+  - `2-1-2 학사운영 규정`, `SEQ=17`, `SEQ_HISTORY=2482`
+  - `2-1-50 대학원학칙`, `SEQ=20`, `SEQ_HISTORY=2447`
+- The refreshed list is cached at `%APPDATA%\KU Regulation Assistant\config\regulation-targets.json`.
+- The UI no longer starts a full sync by default; users refresh the list, filter/select targets, and run `선택 규정 동기화`.
+
+## Query layout validation
+
+- `규정 질의` is split into two stable columns.
+- Left column order: question panel, generated answer panel.
+- Right column order: searched evidence candidates, displayed citation panel.
+- The generated answer no longer drops below the right-side evidence/citation panel height.
 
 ## Natural-language RAG validation
 
