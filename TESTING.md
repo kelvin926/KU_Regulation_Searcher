@@ -20,9 +20,9 @@ Branch: `main`
 
 | Check | Result |
 | --- | --- |
-| Installer file | `release\KU-Regulation-Setup-0.4.0.exe` |
-| Installer size | 192,926,972 bytes, about 184.0 MiB |
-| SHA-256 | `B051EE5446CAE4E844B9C5F146FAF1556B7B075D817CB670F6B171566C567343` |
+| Installer file | `release\KU-Regulation-Setup-0.5.0.exe` |
+| Installer size | 192,968,174 bytes, about 184.0 MiB |
+| SHA-256 | `62D5C19B84A5E9070DCEA0812219F38B078FF58DD72C3E0FA3C6EFDE55FDF5CA` |
 | Install type | Per-user NSIS install |
 | Admin permission | Not required in silent install validation |
 | Install success | Passed, exit code 0 |
@@ -51,6 +51,17 @@ Note: this PC already had a pre-0.4.0 install under `%LOCALAPPDATA%\Programs\KU 
 | Regulation list cache | `%APPDATA%\KU Regulation Searcher\config\regulation-targets.json` exists |
 | Legacy migration | `%APPDATA%\KU Regulation Assistant\` is copied to the new 0.4.0 path when needed |
 | Repo data leakage | No repo-root `data`, `auth`, `logs`, `.env`, sqlite, or encrypted session files were created |
+
+## 0.5.0 validation notes
+
+- Login screen now explains that users must log in through the official Korea University login window and close that login window to refresh the app login state.
+- Sync progress, refresh messages, and error notices appear above the long regulation tree instead of below it.
+- Sync status numbers show current success/failure counts while a sync job is running.
+- Sync progress shows estimated remaining time and estimated total time after at least one regulation completes.
+- In-progress refresh notices are no longer duplicated.
+- The visible-list selection button toggles between select all and clear all.
+- Folder-level selection buttons also toggle between selecting and clearing that folder.
+- Sync status pills have distinct colors for idle, running, stopping, completed, failed, and cancelled states.
 
 ## 0.4.0 validation notes
 

@@ -9,6 +9,20 @@ export function LoginPage() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
+  async function openLogin() {
+    setBusy(true);
+    setMessage("고려대 공식 로그인 창에서 로그인한 뒤, 로그인 창을 닫으면 이 화면에서 로그인 상태를 확인합니다.");
+    try {
+      const next = unwrap(await window.kuRegulation.auth.openLogin());
+      setStatus(next);
+      setMessage(next.message);
+    } catch (error) {
+      setMessage(getErrorMessage(error));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function run(action: () => Promise<AuthStatus>) {
     setBusy(true);
     setMessage(null);
@@ -33,7 +47,7 @@ export function LoginPage() {
           </span>
         </div>
         <div className="button-row">
-          <button type="button" disabled={busy} onClick={() => run(async () => unwrap(await window.kuRegulation.auth.openLogin()))}>
+          <button type="button" disabled={busy} onClick={openLogin}>
             <LogIn size={17} />
             로그인 열기
           </button>
@@ -53,6 +67,9 @@ export function LoginPage() {
             로컬 세션 삭제
           </button>
         </div>
+        <WarningBox tone="info">
+          로그인 열기를 누르면 고려대학교 규정관리시스템 공식 로그인 창이 열립니다. 그 창에서 직접 로그인한 뒤 로그인 창을 닫아야 이 화면의 로그인 상태가 갱신됩니다.
+        </WarningBox>
         {message && <WarningBox tone={status?.status === "AUTHENTICATED" ? "info" : "warning"}>{message}</WarningBox>}
       </section>
     </div>

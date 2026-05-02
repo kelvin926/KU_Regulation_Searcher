@@ -25,6 +25,7 @@ export function SyncPage() {
   const [messageTone, setMessageTone] = useState<"info" | "warning" | "danger">("info");
   const [filter, setFilter] = useState("");
   const [loadingTargets, setLoadingTargets] = useState(false);
+  const [progressStartedAtMs, setProgressStartedAtMs] = useState<number | null>(null);
   const visibleTargets = useMemo(() => {
     const query = filter.trim();
     if (!query) return targets;
@@ -38,10 +39,29 @@ export function SyncPage() {
     );
   }, [filter, targets]);
   const targetTree = useMemo(() => buildTargetTree(visibleTargets), [visibleTargets]);
+  const visibleSeqHistories = useMemo(() => visibleTargets.map((target) => target.seqHistory), [visibleTargets]);
+  const visibleSelectedCount = useMemo(
+    () => visibleSeqHistories.filter((seqHistory) => selected.has(seqHistory)).length,
+    [selected, visibleSeqHistories],
+  );
+  const allVisibleSelected = visibleSeqHistories.length > 0 && visibleSelectedCount === visibleSeqHistories.length;
+  const syncStatus = progress?.status ?? "idle";
+  const syncActive = syncStatus === "running" || syncStatus === "stopping";
+  const displayedSuccessCount = progress ? progress.successCount : (stats?.lastSuccessCount ?? 0);
+  const displayedFailedCount = progress ? progress.failedCount : (stats?.lastFailedCount ?? 0);
+  const estimatedSyncTime = progress && syncActive ? formatEstimatedSyncTime(progress, progressStartedAtMs) : null;
 
   useEffect(() => {
     void refresh();
-    return window.kuRegulation.sync.onProgress((next) => setProgress(next));
+    return window.kuRegulation.sync.onProgress((next) => {
+      setProgress(next);
+      setProgressStartedAtMs((previous) => {
+        if (next.status === "running" || next.status === "stopping") return previous ?? Date.now();
+        if (next.status === "completed" || next.status === "failed" || next.status === "cancelled") return null;
+        return previous;
+      });
+      void refreshSyncStatus();
+    });
   }, []);
 
   async function refresh() {
@@ -59,10 +79,15 @@ export function SyncPage() {
     setTargetCacheInfo(unwrap(await window.kuRegulation.sync.targetCacheInfo()));
   }
 
+  async function refreshSyncStatus() {
+    setStats(unwrap(await window.kuRegulation.db.stats()));
+    setFailures(unwrap(await window.kuRegulation.db.failures()));
+  }
+
   async function refreshTargetList() {
     setLoadingTargets(true);
     setMessageTone("info");
-    setMessage("규정 목록 새로고침 중입니다.");
+    setMessage(null);
     try {
       const loadedTargets = unwrap(await window.kuRegulation.sync.refreshTargets());
       setTargets(loadedTargets);
@@ -83,6 +108,7 @@ export function SyncPage() {
 
   async function start(seqHistories?: number[]) {
     setMessage(null);
+    setProgressStartedAtMs(Date.now());
     try {
       const result = unwrap(await window.kuRegulation.sync.start(seqHistories));
       setProgress(result);
@@ -101,9 +127,21 @@ export function SyncPage() {
   }
 
   function selectFolder(folder: TargetFolder) {
+    const seqHistories = collectFolderSeqHistories(folder);
+    const allSelected = seqHistories.length > 0 && seqHistories.every((seqHistory) => selected.has(seqHistory));
     const next = new Set(selected);
-    for (const seqHistory of collectFolderSeqHistories(folder)) {
-      next.add(seqHistory);
+    for (const seqHistory of seqHistories) {
+      if (allSelected) next.delete(seqHistory);
+      else next.add(seqHistory);
+    }
+    setSelected(next);
+  }
+
+  function toggleVisibleTargets() {
+    const next = new Set(selected);
+    for (const seqHistory of visibleSeqHistories) {
+      if (allVisibleSelected) next.delete(seqHistory);
+      else next.add(seqHistory);
     }
     setSelected(next);
   }
@@ -113,7 +151,7 @@ export function SyncPage() {
       <section className="panel">
         <div className="section-heading">
           <h1>동기화</h1>
-          <span className="status-pill">{formatSyncStatus(progress?.status ?? "idle")}</span>
+          <span className={`status-pill ${getSyncStatusClass(syncStatus)}`}>{formatSyncStatus(syncStatus)}</span>
         </div>
         <div className="button-row">
           <button type="button" disabled={loadingTargets} onClick={refreshTargetList}>
@@ -127,14 +165,11 @@ export function SyncPage() {
           <button
             type="button"
             className="secondary"
-            onClick={() => setSelected(new Set(visibleTargets.map((target) => target.seqHistory)))}
+            disabled={visibleSeqHistories.length === 0}
+            onClick={toggleVisibleTargets}
           >
-            <CheckSquare size={17} />
-            표시 목록 전체 선택
-          </button>
-          <button type="button" className="secondary" onClick={() => setSelected(new Set())}>
-            <Square size={17} />
-            선택 해제
+            {allVisibleSelected ? <Square size={17} /> : <CheckSquare size={17} />}
+            {allVisibleSelected ? "표시 목록 전체 해제" : "표시 목록 전체 선택"}
           </button>
           <button type="button" className="secondary" onClick={() => window.kuRegulation.sync.stop()}>
             <PauseCircle size={17} />
@@ -164,6 +199,17 @@ export function SyncPage() {
             {targetCacheInfo.refreshedAt ? new Date(targetCacheInfo.refreshedAt).toLocaleString("ko-KR") : "확인 불가"}
           </div>
         )}
+        {progress && (
+          <div className="progress-block">
+            <progress max={progress.totalCount || 1} value={progress.successCount + progress.failedCount} />
+            <div className="meta-line">
+              성공 {progress.successCount} · 실패 {progress.failedCount} · 현재 {progress.currentName ?? "-"}
+            </div>
+            {estimatedSyncTime && <div className="meta-line">{estimatedSyncTime}</div>}
+            <div>{progress.message}</div>
+          </div>
+        )}
+        {message && <WarningBox tone={messageTone}>{message}</WarningBox>}
         <div className="target-tree">
           {targetTree.map((folder) => (
             <TargetFolderNode
@@ -177,16 +223,6 @@ export function SyncPage() {
           ))}
           {visibleTargets.length === 0 && <div className="empty-panel">표시할 규정이 없습니다.</div>}
         </div>
-        {progress && (
-          <div className="progress-block">
-            <progress max={progress.totalCount || 1} value={progress.successCount + progress.failedCount} />
-            <div className="meta-line">
-              성공 {progress.successCount} · 실패 {progress.failedCount} · 현재 {progress.currentName ?? "-"}
-            </div>
-            <div>{progress.message}</div>
-          </div>
-        )}
-        {message && <WarningBox tone={messageTone}>{message}</WarningBox>}
       </section>
       <section className="panel">
         <div className="section-heading">
@@ -195,8 +231,8 @@ export function SyncPage() {
         <div className="stats-grid">
           <Stat label="규정" value={stats?.regulationCount ?? 0} />
           <Stat label="조문" value={stats?.articleCount ?? 0} />
-          <Stat label="마지막 성공" value={stats?.lastSuccessCount ?? 0} />
-          <Stat label="마지막 실패" value={stats?.lastFailedCount ?? 0} />
+          <Stat label={syncActive ? "현재 성공" : "마지막 성공"} value={displayedSuccessCount} />
+          <Stat label={syncActive ? "현재 실패" : "마지막 실패"} value={displayedFailedCount} />
         </div>
         <div className="meta-line">마지막 동기화: {stats?.lastSyncAt ? new Date(stats.lastSyncAt).toLocaleString("ko-KR") : "-"}</div>
         <div className="failure-list">
@@ -227,6 +263,7 @@ function TargetFolderNode({
 }) {
   const totalCount = collectFolderSeqHistories(folder).length;
   const selectedCount = collectFolderSeqHistories(folder).filter((seqHistory) => selected.has(seqHistory)).length;
+  const allSelected = totalCount > 0 && selectedCount === totalCount;
 
   return (
     <details className="target-folder" open>
@@ -238,13 +275,14 @@ function TargetFolderNode({
         <button
           type="button"
           className="folder-action"
+          disabled={totalCount === 0}
           onClick={(event) => {
             event.preventDefault();
             event.stopPropagation();
             onSelectFolder(folder);
           }}
         >
-          전체 선택
+          {allSelected ? "전체 해제" : "전체 선택"}
         </button>
       </summary>
       <div className="target-folder-body">
@@ -343,6 +381,49 @@ function formatSyncStatus(status: SyncProgress["status"]): string {
     default:
       return "대기 중";
   }
+}
+
+function getSyncStatusClass(status: SyncProgress["status"]): string {
+  switch (status) {
+    case "running":
+      return "running";
+    case "stopping":
+      return "stopping";
+    case "completed":
+      return "ok";
+    case "failed":
+      return "danger";
+    case "cancelled":
+      return "cancelled";
+    default:
+      return "idle";
+  }
+}
+
+function formatEstimatedSyncTime(progress: SyncProgress, startedAtMs: number | null): string {
+  if (!startedAtMs || progress.totalCount <= 0) return "예상 소요 시간: 계산 중";
+
+  const completedCount = progress.successCount + progress.failedCount;
+  if (completedCount <= 0) return "예상 소요 시간: 계산 중";
+
+  const elapsedMs = Math.max(Date.now() - startedAtMs, 1);
+  const averageMs = elapsedMs / completedCount;
+  const remainingCount = Math.max(progress.totalCount - completedCount, 0);
+  const remainingMs = averageMs * remainingCount;
+  const totalMs = averageMs * progress.totalCount;
+  return `예상 남은 시간: ${formatDuration(remainingMs)} · 예상 총 소요 시간: ${formatDuration(totalMs)}`;
+}
+
+function formatDuration(ms: number): string {
+  if (!Number.isFinite(ms) || ms <= 0) return "1초 미만";
+  const totalSeconds = Math.max(1, Math.round(ms / 1000));
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  if (hours > 0) return `${hours}시간 ${minutes}분`;
+  if (minutes > 0) return `${minutes}분 ${seconds}초`;
+  return `${seconds}초`;
 }
 
 function formatSyncActionError(error: unknown): string {
