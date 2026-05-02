@@ -3,7 +3,7 @@
   "version": "0.5.0",
   "description": "고려대학교 규정 로컬 검색 및 Gemini RAG Windows 앱",
   "author": "kelvin926",
-  "license": "MIT",
+  "license": "SEE LICENSE IN README.md",
   "main": "dist/main/index.js",
   "scripts": {
     "dev": "npm run rebuild:electron && concurrently -k \"npm:dev:renderer\" \"npm:dev:main\" \"npm:dev:electron\"",
