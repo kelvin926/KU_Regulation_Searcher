@@ -1,6 +1,7 @@
 import { app } from "electron";
 import fs from "node:fs";
 import path from "node:path";
+import { LEGACY_APP_DATA_FOLDER_NAME } from "../shared/constants";
 
 export interface AppPaths {
   userData: string;
@@ -38,4 +39,23 @@ export function ensureAppPaths(paths: AppPaths): void {
   for (const dir of [paths.userData, paths.dataDir, paths.authDir, paths.logsDir, paths.configDir]) {
     fs.mkdirSync(dir, { recursive: true });
   }
+}
+
+export function migrateLegacyAppData(paths: AppPaths): void {
+  const legacyUserData = path.join(app.getPath("appData"), LEGACY_APP_DATA_FOLDER_NAME);
+  if (legacyUserData === paths.userData || !fs.existsSync(legacyUserData)) return;
+
+  for (const name of ["data", "auth", "config", "logs"] as const) {
+    copyIfMissing(path.join(legacyUserData, name), path.join(paths.userData, name));
+  }
+
+  for (const name of ["Local State", "Preferences"] as const) {
+    copyIfMissing(path.join(legacyUserData, name), path.join(paths.userData, name));
+  }
+}
+
+function copyIfMissing(source: string, destination: string): void {
+  if (!fs.existsSync(source) || fs.existsSync(destination)) return;
+  fs.mkdirSync(path.dirname(destination), { recursive: true });
+  fs.cpSync(source, destination, { recursive: true });
 }

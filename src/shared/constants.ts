@@ -1,5 +1,7 @@
-export const APP_NAME = "KU Regulation Assistant";
-export const APP_DATA_FOLDER_NAME = "KU Regulation Assistant";
+export const APP_NAME = "KU Regulation Searcher";
+export const APP_DATA_FOLDER_NAME = "KU Regulation Searcher";
+export const LEGACY_APP_DATA_FOLDER_NAME = "KU Regulation Assistant";
+export const APP_VERSION = "0.4.0";
 
 export const KOREA_POLICY_ORIGIN = "https://policies.korea.ac.kr";
 export const KOREA_POLICY_MAIN_URL = `${KOREA_POLICY_ORIGIN}/lmxsrv/main/main.do`;
@@ -11,7 +13,7 @@ export const AI_MODELS = [
   {
     label: "Gemma 4 31B",
     id: "gemma-4-31b-it",
-    description: "호출량이 많고 비용 민감한 일반 규정 질의용",
+    description: "긴 답변이 필요한 일반 규정 질의에 사용",
   },
   {
     label: "Gemini 3.1 Flash Lite",

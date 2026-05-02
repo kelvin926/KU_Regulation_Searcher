@@ -5,6 +5,7 @@ import type { DatabaseService } from "../db/database";
 import { normalizeArticleNo } from "../crawler/regulation-parser";
 import { dedupeAndLimitArticles } from "./article-ranker";
 import { expandQuery } from "./query-expander";
+import { parseSearchOperators } from "./search-operators";
 
 export class SearchService {
   constructor(private readonly db: DatabaseService) {}
@@ -13,6 +14,16 @@ export class SearchService {
     const stats = this.db.getStats();
     if (stats.articleCount === 0) {
       return { articles: [], expandedKeywords: [], errorCode: "LOCAL_DB_EMPTY" };
+    }
+
+    const operatorQuery = parseSearchOperators(query);
+    if (operatorQuery.hasOperators) {
+      const result = this.db.searchArticlesByBooleanQuery(query, limit);
+      return {
+        articles: dedupeAndLimitArticles(result.articles, limit),
+        expandedKeywords: result.highlightTerms,
+        errorCode: result.articles.length === 0 ? "NO_RELEVANT_ARTICLES" : undefined,
+      };
     }
 
     const expanded = expandQuery(query);

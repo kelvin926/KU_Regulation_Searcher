@@ -5,12 +5,13 @@ import { AppError } from "../shared/errors";
 import type {
   AiModelId,
   ApiResult,
+  DownloadRegulationFileRequest,
   GenerateAnswerRequest,
   RegulationTarget,
   SearchArticlesRequest,
   SearchPageRequest,
 } from "../shared/types";
-import { getAppPaths, ensureAppPaths } from "./app-paths";
+import { getAppPaths, ensureAppPaths, migrateLegacyAppData } from "./app-paths";
 import { SessionManager } from "./auth/session-manager";
 import { DatabaseService } from "./db/database";
 import { Logger } from "./logs/logger";
@@ -20,6 +21,7 @@ import { RegulationSyncService } from "./crawler/regulation-sync";
 import { SearchService } from "./search/fts-search";
 import { GeminiClient } from "./ai/gemini-client";
 import { createMainWindow } from "./window";
+import { downloadRegulationFile, listAttachmentFiles } from "./crawler/regulation-files";
 
 app.setName(APP_NAME);
 
@@ -46,6 +48,7 @@ app.on("second-instance", () => {
 
 void app.whenReady().then(() => {
   const paths = getAppPaths();
+  migrateLegacyAppData(paths);
   ensureAppPaths(paths);
 
   logger = new Logger(paths);
@@ -89,11 +92,12 @@ function registerIpcHandlers(): void {
   ipcMain.handle("auth:logout", async () =>
     wrap(async () => {
       await sessionManager.clearSession();
-      return { status: "AUTH_REQUIRED", message: "[AUTH_REQUIRED] 세션을 삭제했습니다." };
+      return { status: "AUTH_REQUIRED", message: "[AUTH_REQUIRED] 로그인 세션을 삭제했습니다." };
     }),
   );
 
   ipcMain.handle("sync:targets", async () => wrap(() => syncService.getTargets()));
+  ipcMain.handle("sync:targetCacheInfo", async () => wrap(() => syncService.getTargetCacheInfo()));
   ipcMain.handle("sync:refreshTargets", async () =>
     wrap(async () => {
       const authStatus = await sessionManager.checkStatus();
@@ -135,32 +139,45 @@ function registerIpcHandlers(): void {
     wrap(() => ({
       modelId: settingsStore.getModelId(),
       hasApiKey: apiKeyStore.hasApiKey(),
+      usage: settingsStore.getUsage(),
     })),
   );
   ipcMain.handle("settings:setModel", async (_event, modelId: AiModelId) =>
     wrap(() => {
       assertModelId(modelId);
       settingsStore.setModelId(modelId);
-      return { modelId, hasApiKey: apiKeyStore.hasApiKey() };
+      return { modelId, hasApiKey: apiKeyStore.hasApiKey(), usage: settingsStore.getUsage() };
     }),
   );
   ipcMain.handle("settings:saveApiKey", async (_event, apiKey: string) =>
     wrap(() => {
       apiKeyStore.save(apiKey);
-      return { modelId: settingsStore.getModelId(), hasApiKey: true };
+      return { modelId: settingsStore.getModelId(), hasApiKey: true, usage: settingsStore.getUsage() };
     }),
   );
   ipcMain.handle("settings:deleteApiKey", async () =>
     wrap(() => {
       apiKeyStore.delete();
-      return { modelId: settingsStore.getModelId(), hasApiKey: false };
+      return { modelId: settingsStore.getModelId(), hasApiKey: false, usage: settingsStore.getUsage() };
     }),
   );
   ipcMain.handle("settings:testConnection", async (_event, apiKey?: string) =>
     wrap(async () => {
       const key = apiKey?.trim() ? apiKey : apiKeyStore.load();
-      await geminiClient.testConnection(key, settingsStore.getModelId());
+      const usage = await geminiClient.testConnection(key, settingsStore.getModelId());
+      settingsStore.addUsage(usage);
       return true;
+    }),
+  );
+  ipcMain.handle("settings:usage", async () => wrap(() => settingsStore.getUsage()));
+  ipcMain.handle("settings:resetUsage", async () =>
+    wrap(() => {
+      settingsStore.resetUsage();
+      return {
+        modelId: settingsStore.getModelId(),
+        hasApiKey: apiKeyStore.hasApiKey(),
+        usage: settingsStore.getUsage(),
+      };
     }),
   );
 
@@ -170,18 +187,26 @@ function registerIpcHandlers(): void {
   ipcMain.handle("ask:generate", async (_event, request: GenerateAnswerRequest) =>
     wrap(async () => {
       const articles = searchService.getCandidateArticles(request.articleIds);
-      return geminiClient.generateAnswer({
+      const answer = await geminiClient.generateAnswer({
         apiKey: apiKeyStore.load(),
         modelId: settingsStore.getModelId(),
         question: request.question,
         articles,
       });
+      settingsStore.addUsage(answer.usage ?? {});
+      return answer;
     }),
   );
   ipcMain.handle("search:articles", async (_event, request: SearchPageRequest) =>
     wrap(() => searchService.searchPage(request)),
   );
   ipcMain.handle("articles:get", async (_event, id: number) => wrap(() => db.getArticleById(id)));
+  ipcMain.handle("files:attachments", async (_event, seq: number | null, seqHistory: number | null) =>
+    wrap(() => listAttachmentFiles(seq, seqHistory)),
+  );
+  ipcMain.handle("files:download", async (_event, request: DownloadRegulationFileRequest) =>
+    wrap(() => downloadRegulationFile(request)),
+  );
 
   ipcMain.handle("data:clearSession", async () =>
     wrap(async () => {

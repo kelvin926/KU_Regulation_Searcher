@@ -1,7 +1,7 @@
 import type { ArticleRecord } from "../../shared/types";
 import { ArticleCard } from "./ArticleCard";
 
-export function CitationPanel({ articles }: { articles: ArticleRecord[] }) {
+export function CitationPanel({ articles, highlightTerms = [] }: { articles: ArticleRecord[]; highlightTerms?: string[] }) {
   if (articles.length === 0) {
     return <div className="empty-panel">표시할 근거 조항이 없습니다.</div>;
   }
@@ -12,7 +12,7 @@ export function CitationPanel({ articles }: { articles: ArticleRecord[] }) {
       </div>
       <div className="article-list">
         {articles.map((article) => (
-          <ArticleCard key={article.id} article={article} compact />
+          <ArticleCard key={article.id} article={article} compact highlightTerms={highlightTerms} />
         ))}
       </div>
     </section>

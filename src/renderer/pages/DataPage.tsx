@@ -35,35 +35,36 @@ export function DataPage() {
         <div className="stats-grid">
           <div className="stat"><span>규정</span><strong>{stats?.regulationCount ?? 0}</strong></div>
           <div className="stat"><span>조문</span><strong>{stats?.articleCount ?? 0}</strong></div>
+          <div className="stat"><span>규정 저장 용량</span><strong>{formatBytes(stats?.storageBytes ?? 0)}</strong></div>
         </div>
         <div className="button-column">
           <button type="button" className="secondary danger" onClick={() => run(async () => {
             unwrap(await window.kuRegulation.db.clear());
-            setMessage("로컬 DB를 초기화했습니다.");
+            setMessage("저장된 규정을 초기화했습니다.");
           })}>
             <Database size={17} />
-            로컬 DB 초기화
+            저장된 규정 초기화
           </button>
           <button type="button" className="secondary danger" onClick={() => run(async () => {
             unwrap(await window.kuRegulation.data.clearSession());
-            setMessage("세션을 삭제했습니다.");
+            setMessage("로그인 상태를 삭제했습니다.");
           })}>
             <UserX size={17} />
-            세션 삭제
+            로그인 상태 삭제
           </button>
           <button type="button" className="secondary danger" onClick={() => run(async () => {
             unwrap(await window.kuRegulation.settings.deleteApiKey());
-            setMessage("API Key를 삭제했습니다.");
+            setMessage("Gemini API 키를 삭제했습니다.");
           })}>
             <KeyRound size={17} />
-            API Key 삭제
+            Gemini API 키 삭제
           </button>
           <button type="button" className="danger" onClick={() => run(async () => {
             unwrap(await window.kuRegulation.data.clearAll());
             setMessage("전체 로컬 데이터를 삭제했습니다.");
           })}>
             <Trash2 size={17} />
-            전체 로컬 데이터 삭제
+            로그인/규정/API 키 모두 삭제
           </button>
         </div>
         {message && <WarningBox>{message}</WarningBox>}
@@ -75,4 +76,16 @@ export function DataPage() {
       </section>
     </div>
   );
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  const units = ["KB", "MB", "GB"];
+  let value = bytes / 1024;
+  let unit = units[0];
+  for (let index = 1; index < units.length && value >= 1024; index += 1) {
+    value /= 1024;
+    unit = units[index];
+  }
+  return `${value.toFixed(value >= 10 ? 1 : 2)} ${unit}`;
 }

@@ -1,17 +1,18 @@
 import { GoogleGenAI, Type } from "@google/genai";
-import type { ArticleRecord, GeneratedAnswer, AiModelId } from "../../shared/types";
+import type { ArticleRecord, GeneratedAnswer, AiModelId, AiTokenUsage } from "../../shared/types";
 import { AppError } from "../../shared/errors";
 import { buildPolicyAnswerPrompt } from "./prompt-builder";
 import { parseAndValidateAnswer } from "./answer-validator";
 
 export class GeminiClient {
-  async testConnection(apiKey: string, modelId: AiModelId): Promise<void> {
-    await this.generateRaw({
+  async testConnection(apiKey: string, modelId: AiModelId): Promise<AiTokenUsage> {
+    const result = await this.generateRaw({
       apiKey,
       modelId,
       prompt: "연결 테스트입니다. OK만 출력하세요.",
       responseMimeType: "text/plain",
     });
+    return result.usage;
   }
 
   async generateAnswer({
@@ -26,8 +27,8 @@ export class GeminiClient {
     articles: ArticleRecord[];
   }): Promise<GeneratedAnswer> {
     const prompt = buildPolicyAnswerPrompt({ question, articles });
-    const text = await this.generateRaw({ apiKey, modelId, prompt, responseMimeType: "application/json" });
-    return parseAndValidateAnswer(text, articles);
+    const result = await this.generateRaw({ apiKey, modelId, prompt, responseMimeType: "application/json" });
+    return { ...parseAndValidateAnswer(result.text, articles), usage: result.usage };
   }
 
   private async generateRaw({
@@ -40,7 +41,7 @@ export class GeminiClient {
     modelId: AiModelId;
     prompt: string;
     responseMimeType: "application/json" | "text/plain";
-  }): Promise<string> {
+  }): Promise<{ text: string; usage: AiTokenUsage }> {
     if (!apiKey.trim()) throw new AppError("API_KEY_MISSING");
 
     try {
@@ -57,12 +58,26 @@ export class GeminiClient {
       });
       const text = response.text;
       if (!text) throw new AppError("MODEL_RESPONSE_INVALID");
-      return text;
+      return { text, usage: toTokenUsage(response.usageMetadata) };
     } catch (error) {
       if (error instanceof AppError) throw error;
       throw mapGeminiError(error);
     }
   }
+}
+
+function toTokenUsage(usage: unknown): AiTokenUsage {
+  const record = usage && typeof usage === "object" ? (usage as Record<string, unknown>) : {};
+  return {
+    promptTokenCount: toNumber(record.promptTokenCount),
+    candidatesTokenCount: toNumber(record.candidatesTokenCount),
+    thoughtsTokenCount: toNumber(record.thoughtsTokenCount),
+    totalTokenCount: toNumber(record.totalTokenCount),
+  };
+}
+
+function toNumber(value: unknown): number {
+  return Number.isFinite(Number(value)) ? Number(value) : 0;
 }
 
 const ANSWER_RESPONSE_SCHEMA = {

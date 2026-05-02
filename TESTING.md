@@ -1,150 +1,79 @@
-# Windows local validation
+# Windows validation
 
 Validation date: 2026-05-03 KST
-
-This project is currently validated against Windows as the primary local environment.
-Mac-specific behavior is not the release criterion for this MVP.
-
-## Environment
-
-- OS: Windows 11
-- Repo: `https://github.com/kelvin926/KU_Regulation_Searcher`
-- Branch: `main`
-- Installer: `release\KU-Regulation-Setup-0.3.0.exe`
-- Installer size: 104,522,603 bytes, about 99.7 MiB
-- AppData path: `%APPDATA%\KU Regulation Assistant\`
+Primary environment: Windows 11, PowerShell
+Repository: `https://github.com/kelvin926/KU_Regulation_Searcher`
+Branch: `main`
 
 ## Command validation
 
-- `npm install`: passed
-- `npm test`: passed, 5 test files and 10 tests
-- `npm run build`: passed
-- `npm run rebuild:electron`: passed
-- `npm run dist:win`: passed
-- `git diff --check`: passed, with Windows CRLF warnings only
-
-## Windows-specific fixes verified
-
-- Vite dev server uses port `6127` because this Windows PC reserves the default Vite port `5173`, causing `EACCES`.
-- `better-sqlite3` is rebuilt with `electron-rebuild -f -w better-sqlite3` so `npm test` does not leave the native module compiled for the wrong ABI before Electron launch.
-- Windows packaging disables executable resource signing/editing with `win.signAndEditExecutable=false` because the unsigned MVP should not require winCodeSign symlink extraction privileges.
-- Vite uses relative packaged asset paths via `base: "./"` so the installed app loads renderer assets from `file://.../resources/app.asar/dist/renderer/assets/...`.
-- NSIS keeps AppData on uninstall/update with `deleteAppDataOnUninstall=false`, so login cookies, encrypted API key, settings, DB, and target-list cache are not removed by a version update.
+| Check | Result |
+| --- | --- |
+| `npm install` | Passed |
+| `npm test` | Passed, 6 files / 12 tests |
+| `npm run build` | Passed |
+| `npm run rebuild:electron` | Passed |
+| `npm run dist:win` | Passed |
+| `git diff --check` | Passed |
 
 ## Installer validation
 
-- Per-user silent install/update: passed
-- Admin permission required: no
-- Install path: `%LOCALAPPDATA%\Programs\KU Regulation Assistant\`
-- Start menu shortcut: created
-- Desktop shortcut: created
-- Installed app launch without Node.js runtime: passed
-- App relaunch: passed
-- Update from the previous local install without uninstall: passed
-- AppData persisted after update: `cookies.enc`, `gemini-api-key.enc`, `settings.json`, and `regulation-targets.json` remained present
-- Uninstall via generated uninstaller: passed
-- Reinstall: passed
-- SmartScreen: not shown during local silent validation; the installer is unsigned, so a SmartScreen warning is still possible on other PCs.
+| Check | Result |
+| --- | --- |
+| Installer file | `release\KU-Regulation-Setup-0.4.0.exe` |
+| Installer size | 192,926,972 bytes, about 184.0 MiB |
+| SHA-256 | `B051EE5446CAE4E844B9C5F146FAF1556B7B075D817CB670F6B171566C567343` |
+| Install type | Per-user NSIS install |
+| Admin permission | Not required in silent install validation |
+| Install success | Passed, exit code 0 |
+| App launch success | Passed |
+| Window title | `KU Regulation Searcher` |
+| Process name | `KU Regulation Searcher` |
+| Desktop shortcut | Created and targets `KU Regulation Searcher.exe` |
+| Start menu shortcut | Created and targets `KU Regulation Searcher.exe` |
+| Installer icon | Verified by extracting the associated icon from the setup exe |
+| Packaged exe icon | Verified by extracting the associated icon from `release\win-unpacked\KU Regulation Searcher.exe` |
+| Installed exe icon | Verified by extracting the associated icon from the installed exe |
+| SmartScreen | Possible because the MVP installer is unsigned |
 
-## AppData validation
+Note: this PC already had a pre-0.4.0 install under `%LOCALAPPDATA%\Programs\KU Regulation Assistant`. Updating in place keeps that installation folder for compatibility, but the visible app name, exe name, window title, shortcut name, and icon are `KU Regulation Searcher`. Fresh per-user installs use the current product name.
 
-Created under `%APPDATA%\KU Regulation Assistant\`:
+## App data validation
 
-- `data\ku-policy.sqlite`
-- `auth\`
-- `logs\`
-- `config\settings.json`
-- `config\regulation-targets.json` after a full regulation-list refresh
+| Path | Result |
+| --- | --- |
+| User data | `%APPDATA%\KU Regulation Searcher\` exists |
+| Database | `%APPDATA%\KU Regulation Searcher\data\ku-policy.sqlite` exists |
+| Auth/session | `%APPDATA%\KU Regulation Searcher\auth\cookies.enc` exists after login |
+| Gemini API key | `%APPDATA%\KU Regulation Searcher\auth\gemini-api-key.enc` exists after saving |
+| Logs | `%APPDATA%\KU Regulation Searcher\logs\app.log` exists |
+| Settings | `%APPDATA%\KU Regulation Searcher\config\settings.json` exists |
+| Regulation list cache | `%APPDATA%\KU Regulation Searcher\config\regulation-targets.json` exists |
+| Legacy migration | `%APPDATA%\KU Regulation Assistant\` is copied to the new 0.4.0 path when needed |
+| Repo data leakage | No repo-root `data`, `auth`, `logs`, `.env`, sqlite, or encrypted session files were created |
 
-No SQLite DB, auth/session file, log file, `.env`, or installer executable was created as a tracked repo file. The `release\` directory remains ignored and must not be committed.
+## 0.4.0 validation notes
 
-## Gemini API validation
+- Program branding changed to `KU Regulation Searcher`.
+- Installer, unpacked exe, installed exe, app header, and shortcuts use the new name.
+- The app icon was regenerated from `KU_Regulation_Searcher.png` and embedded into Windows executable resources with `rcedit`.
+- Korea University style colors are applied to the app shell and main controls.
+- Pretendard Variable is bundled from the official `pretendard` package.
+- Regulation list refresh shows an in-progress message and a completion message.
+- If login is required during list refresh or sync, the UI tells the user to log in through the official login window and close that window before retrying.
+- Regulation targets are loaded in the regulation-management-system order and grouped into folder-like categories.
+- Search boxes support quoted phrases, `OR` / `|`, and excluded terms with `-term` or `NOT term`.
+- Matching search terms are highlighted in search and candidate article views.
+- HWP/PDF download buttons are available for synced regulation articles.
+- Attached/appendix file buttons are loaded when the regulation system exposes attachment metadata.
+- AI request/token usage and stored regulation size are displayed.
+- API key input is disabled while a key is already saved, and becomes editable after deleting the saved key.
+- English internal statuses shown to users were translated to Korean labels where practical.
+- Query synonym expansion was narrowed so distinct terms such as `교원`, `직원`, and `조교` are not treated as the same meaning.
 
-- Missing API key: returns `[API_KEY_MISSING]`
-- Invalid API key: returns `[API_KEY_INVALID]`
-- API key save: passed
-- App restart with saved API key: passed
-- Gemma 4 31B (`gemma-4-31b-it`) connection test: passed
-- Gemini 3.1 Flash Lite (`gemini-3.1-flash-lite-preview`) connection test: passed
-- API key delete: passed; after deletion, connection test returns `[API_KEY_MISSING]`
-- Plaintext API key storage: not found in repo or AppData auth file names; stored file was encrypted as `auth\gemini-api-key.enc` before deletion.
+## Manual checks
 
-## Login validation
-
-- Official Korea University regulation system login window: opened in Electron BrowserWindow
-- User-entered login: passed
-- Auth status after login: `AUTHENTICATED`
-- Session persistence after app restart/reinstall: passed
-- Logout/session delete: passed
-- Access after logout: returns `[AUTH_REQUIRED]`
-- Credentials are not stored by the app.
-
-## MVP regulation sync validation
-
-Only the MVP target regulations were synced:
-
-- 고려대학교 학칙: passed
-- 학사운영 규정: passed
-- 대학원학칙: passed
-
-Sync results:
-
-- Regulations: 3
-- Articles: 265
-- `article_fts` rows: 265
-- Request spacing: next regulation fetch started about 1.1 seconds after the previous save event
-- `source_url`, `fetched_at`, `seq_history`: present
-- Sync failures: none
-- Duplicate articles by regulation/article number: none
-
-Article parsing spot checks:
-
-- `제1조`: found
-- `제76조`: found
-- `제76조의2`: found separately from `제76조`
-- `76의2`: normalized to `제76조의2` in app search
-- `제1조의2`: no standalone article found in the synced MVP data
-- `부칙`: no standalone article found in the synced MVP data
-
-## Regulation list refresh validation
-
-Version `0.3.0` keeps the full current-regulation list refresh and selected sync, and renders targets in the official tree order.
-
-- Stored login cookies loaded through Electron `safeStorage`: passed
-- Official AJAX tree endpoint used: `/lmxsrv/law/lawTreeNodes.do`
-- Official list endpoint used: `/lmxsrv/law/lawListManager_areaC.do`
-- Folder list pagination: verified; list pages contain 10 regulations per page and are fetched until no new target appears
-- Refreshed target count: 1,277 current regulation targets in the logged-in session
-- Target order: follows the official regulation-system folder/list order through stored `sortPath`; first items begin with `1-0-1 학교법인 고려중앙학원 정관`, then `2-1-1 고려대학교 학칙`
-- Target grouping: rendered as nested folders from stored `categoryPath`
-- Core targets found in refreshed list:
-  - `2-1-1 고려대학교 학칙`, `SEQ=15`, `SEQ_HISTORY=2502`
-  - `2-1-2 학사운영 규정`, `SEQ=17`, `SEQ_HISTORY=2482`
-  - `2-1-50 대학원학칙`, `SEQ=20`, `SEQ_HISTORY=2447`
-- The refreshed list is cached at `%APPDATA%\KU Regulation Assistant\config\regulation-targets.json`.
-- The UI no longer starts a full sync by default; users refresh the list, filter/select targets, and run `선택 규정 동기화`.
-
-## Query layout validation
-
-- `규정 질의` is split into two stable columns.
-- Left column order: question panel, generated answer panel.
-- Right column order: searched evidence candidates, displayed citation panel.
-- The generated answer no longer drops below the right-side evidence/citation panel height.
-- Pressing Enter in the question box runs local article search; Shift+Enter keeps a newline.
-- The answer button label is `AI 답변 생성`.
-- During answer generation, the UI shows `AI 답변 생성 중입니다.` and API/search errors are displayed in the panel.
-- The citation heading is `선택된 근거 조항`.
-- Articles used by the AI answer are highlighted below the answer body.
-- Pressing Enter in the regulation search inputs runs search immediately.
-
-## Natural-language RAG validation
-
-Model used for final natural-language validation: `gemini-3.1-flash-lite-preview`
-
-- "휴학은 몇 학기까지 가능한가요?": passed; 8 local candidates, answer grounded in selected candidate IDs.
-- "수료연구등록은 어떤 경우에 하나요?": passed; answer states that the provided regulation defines 수료연구생 and delegates registration details to graduate-school rules.
-- "학위청구논문 심사는 어떤 조건이 필요한가요?": passed after response validation hardening; answer uses candidate IDs for 대학원학칙 제32조 and 제33조의2.
-- "제76조의2와 관련된 내용 찾아줘.": passed; answer uses 학사운영 규정 제76조의2 and displays a validation warning when the model mentions a non-candidate cross-reference.
-- "고려대에서 학생이 우주선을 빌릴 수 있나요?": passed after query stop-word tightening; local search returns `NO_RELEVANT_ARTICLES`, candidate count 0, and the model call is skipped.
-
-The app is a regulation search and RAG assistant. Final interpretation or official applicability should still be confirmed with the relevant department or office.
+- The user completed Gemini API key saving and Korea University login through the app UI during Windows validation.
+- Login cookies and the Gemini API key persisted across app restart through encrypted files under `%APPDATA%\KU Regulation Searcher\auth\`.
+- API key and login credentials were not written to README, TESTING, source files, or git diffs.
+- Full live regulation interpretation remains advisory; final academic/regulatory decisions should still be confirmed with the department office or responsible office.

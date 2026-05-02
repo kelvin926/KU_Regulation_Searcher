@@ -5,7 +5,7 @@ import {
   KOREA_POLICY_CONTENT_URL,
   MVP_REGULATION_TARGETS,
 } from "../../shared/constants";
-import type { RegulationTarget, SyncFailure, SyncProgress, SyncSummary } from "../../shared/types";
+import type { RegulationTarget, RegulationTargetCacheInfo, SyncFailure, SyncProgress, SyncSummary } from "../../shared/types";
 import type { AppPaths } from "../app-paths";
 import type { DatabaseService } from "../db/database";
 import { fetchWithSession } from "./fetch-with-session";
@@ -33,6 +33,23 @@ export class RegulationSyncService {
     }
 
     return getFallbackTargets();
+  }
+
+  getTargetCacheInfo(): RegulationTargetCacheInfo {
+    const cached = this.loadTargetCache();
+    if (cached.targets.length > 0) {
+      return {
+        hasRefreshed: true,
+        refreshedAt: cached.refreshedAt,
+        targetCount: cached.targets.length,
+      };
+    }
+
+    return {
+      hasRefreshed: false,
+      refreshedAt: null,
+      targetCount: getFallbackTargets().length,
+    };
   }
 
   async refreshTargets(): Promise<RegulationTarget[]> {
@@ -153,25 +170,43 @@ export class RegulationSyncService {
   }
 
   private loadCachedTargets(): RegulationTarget[] {
-    if (!fs.existsSync(this.paths.targetCachePath)) return [];
+    return this.loadTargetCache().targets;
+  }
+
+  private loadTargetCache(): { refreshedAt: string | null; targets: RegulationTarget[] } {
+    if (!fs.existsSync(this.paths.targetCachePath)) return { refreshedAt: null, targets: [] };
 
     try {
       const parsed = JSON.parse(fs.readFileSync(this.paths.targetCachePath, "utf8")) as unknown;
-      if (!Array.isArray(parsed)) return [];
-      const targets = parsed
+      const rawTargets = Array.isArray(parsed)
+        ? parsed
+        : parsed && typeof parsed === "object" && Array.isArray((parsed as { targets?: unknown }).targets)
+          ? (parsed as { targets: unknown[] }).targets
+          : [];
+      if (rawTargets.length === 0) return { refreshedAt: null, targets: [] };
+
+      const targets = rawTargets
         .map((item) => normalizeTarget(item))
         .filter((target): target is RegulationTarget => target !== null);
-      return targets.length > 0 ? sortTargets(targets) : [];
+      const refreshedAt =
+        !Array.isArray(parsed) && parsed && typeof parsed === "object" && typeof (parsed as { refreshedAt?: unknown }).refreshedAt === "string"
+          ? (parsed as { refreshedAt: string }).refreshedAt
+          : fs.statSync(this.paths.targetCachePath).mtime.toISOString();
+      return targets.length > 0 ? { refreshedAt, targets: sortTargets(targets) } : { refreshedAt: null, targets: [] };
     } catch (error) {
       this.logger.warn("Failed to load cached regulation targets", {
         errorType: error instanceof Error ? error.name : "unknown",
       });
-      return [];
+      return { refreshedAt: null, targets: [] };
     }
   }
 
   private saveCachedTargets(targets: RegulationTarget[]): void {
-    fs.writeFileSync(this.paths.targetCachePath, JSON.stringify(sortTargets(targets), null, 2), "utf8");
+    fs.writeFileSync(
+      this.paths.targetCachePath,
+      JSON.stringify({ refreshedAt: new Date().toISOString(), targets: sortTargets(targets) }, null, 2),
+      "utf8",
+    );
   }
 }
 

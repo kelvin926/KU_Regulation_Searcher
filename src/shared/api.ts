@@ -1,13 +1,18 @@
 import type {
   AiModelId,
   AiSettings,
+  AiUsageStats,
   ApiResult,
   ArticleRecord,
   AskSearchResult,
   AuthStatus,
+  DownloadRegulationFileRequest,
+  DownloadResult,
   DbStats,
   GenerateAnswerRequest,
   GeneratedAnswer,
+  RegulationFile,
+  RegulationTargetCacheInfo,
   RegulationTarget,
   SearchArticlesRequest,
   SearchPageRequest,
@@ -24,6 +29,7 @@ export interface KuRegulationApi {
   };
   sync: {
     targets: () => Promise<ApiResult<RegulationTarget[]>>;
+    targetCacheInfo: () => Promise<ApiResult<RegulationTargetCacheInfo>>;
     refreshTargets: () => Promise<ApiResult<RegulationTarget[]>>;
     start: (seqHistories?: number[]) => Promise<ApiResult<SyncSummary>>;
     stop: () => Promise<ApiResult<boolean>>;
@@ -40,6 +46,8 @@ export interface KuRegulationApi {
     saveApiKey: (apiKey: string) => Promise<ApiResult<AiSettings>>;
     deleteApiKey: () => Promise<ApiResult<AiSettings>>;
     testConnection: (apiKey?: string) => Promise<ApiResult<boolean>>;
+    usage: () => Promise<ApiResult<AiUsageStats>>;
+    resetUsage: () => Promise<ApiResult<AiSettings>>;
   };
   ask: {
     search: (request: SearchArticlesRequest) => Promise<ApiResult<AskSearchResult>>;
@@ -50,6 +58,10 @@ export interface KuRegulationApi {
   };
   articles: {
     get: (id: number) => Promise<ApiResult<ArticleRecord | null>>;
+  };
+  files: {
+    attachments: (seq: number | null, seqHistory: number | null) => Promise<ApiResult<RegulationFile[]>>;
+    download: (request: DownloadRegulationFileRequest) => Promise<ApiResult<DownloadResult>>;
   };
   data: {
     clearSession: () => Promise<ApiResult<boolean>>;

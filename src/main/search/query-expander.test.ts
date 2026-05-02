@@ -5,9 +5,17 @@ describe("query expander", () => {
   it("adds synonym groups and direct article numbers", () => {
     const expanded = expandQuery("일반휴학은 제76조의2와 관련 있나요?");
     expect(expanded.keywords).toContain("휴학");
-    expect(expanded.keywords).toContain("군휴학");
+    expect(expanded.keywords).not.toContain("군휴학");
     expect(expanded.keywords).toContain("제76조의2");
     expect(expanded.ftsQuery).toContain('"제76조의2"');
+  });
+
+  it("keeps distinct university roles in separate synonym groups", () => {
+    const expanded = expandQuery("조교 임용 기준");
+    expect(expanded.keywords).toContain("교육조교");
+    expect(expanded.keywords).toContain("연구조교");
+    expect(expanded.keywords).not.toContain("교원");
+    expect(expanded.keywords).not.toContain("직원");
   });
 
   it("drops generic question words that create irrelevant matches", () => {

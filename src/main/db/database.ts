@@ -4,6 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import type { ArticleRecord, DbStats, RegulationRecord, SyncFailure } from "../../shared/types";
 import { runMigrations } from "./migrations";
+import { parseSearchOperators, type ParsedSearchOperators } from "../search/search-operators";
 
 export interface ParsedArticleForDb {
   articleNo: string;
@@ -33,8 +34,10 @@ interface CountRow {
 
 export class DatabaseService {
   private readonly db: BetterSqlite3.Database;
+  private readonly dbPath: string;
 
   constructor(dbPath: string) {
+    this.dbPath = dbPath;
     fs.mkdirSync(path.dirname(dbPath), { recursive: true });
     this.db = new BetterSqlite3(dbPath);
     runMigrations(this.db);
@@ -65,6 +68,7 @@ export class DatabaseService {
       lastSyncStatus: lastSync?.status ?? null,
       lastSuccessCount: lastSync?.success_count ?? 0,
       lastFailedCount: lastSync?.failed_count ?? 0,
+      storageBytes: this.getStorageBytes(),
     };
   }
 
@@ -238,6 +242,29 @@ export class DatabaseService {
       .all({ ...params, limit }) as ArticleRecord[];
   }
 
+  searchArticlesByBooleanQuery(query: string, limit: number): { articles: ArticleRecord[]; highlightTerms: string[] } {
+    const parsed = parseSearchOperators(query);
+    const { clause, bind } = buildBooleanSearchClause(parsed, [
+      "regulation_name",
+      "article_no",
+      "article_title",
+      "article_body",
+    ]);
+    if (!clause) return { articles: [], highlightTerms: [] };
+
+    const articles = this.db
+      .prepare(
+        `SELECT *
+         FROM articles
+         WHERE ${clause}
+         ORDER BY fetched_at DESC, id ASC
+         LIMIT @limit`,
+      )
+      .all({ ...bind, limit }) as ArticleRecord[];
+
+    return { articles, highlightTerms: parsed.highlightTerms };
+  }
+
   searchArticlePage(params: {
     regulationName?: string;
     bodyQuery?: string;
@@ -247,12 +274,20 @@ export class DatabaseService {
     const where: string[] = [];
     const bind: Record<string, unknown> = { limit: params.limit };
     if (params.regulationName?.trim()) {
-      where.push("regulation_name LIKE @regulationName");
-      bind.regulationName = `%${params.regulationName.trim()}%`;
+      const parsed = parseSearchOperators(params.regulationName);
+      const result = buildBooleanSearchClause(parsed, ["regulation_name"], "regulationName");
+      if (result.clause) {
+        where.push(result.clause);
+        Object.assign(bind, result.bind);
+      }
     }
     if (params.bodyQuery?.trim()) {
-      where.push("(article_title LIKE @bodyQuery OR article_body LIKE @bodyQuery)");
-      bind.bodyQuery = `%${params.bodyQuery.trim()}%`;
+      const parsed = parseSearchOperators(params.bodyQuery);
+      const result = buildBooleanSearchClause(parsed, ["article_title", "article_body"], "bodyQuery");
+      if (result.clause) {
+        where.push(result.clause);
+        Object.assign(bind, result.bind);
+      }
     }
     if (params.articleNo?.trim()) {
       where.push("article_no = @articleNo");
@@ -297,4 +332,55 @@ export class DatabaseService {
     transaction();
     this.db.exec("VACUUM;");
   }
+
+  private getStorageBytes(): number {
+    return [this.dbPath, `${this.dbPath}-wal`, `${this.dbPath}-shm`].reduce((total, filePath) => {
+      try {
+        return total + fs.statSync(filePath).size;
+      } catch {
+        return total;
+      }
+    }, 0);
+  }
+}
+
+function buildBooleanSearchClause(
+  parsed: ParsedSearchOperators,
+  fields: string[],
+  prefix = "query",
+): { clause: string; bind: Record<string, string> } {
+  const clauses: string[] = [];
+  const bind: Record<string, string> = {};
+  let index = 0;
+
+  for (const term of parsed.includeTerms) {
+    const key = `${prefix}Include${index}`;
+    clauses.push(buildLikeAnyField(fields, `@${key}`));
+    bind[key] = `%${term}%`;
+    index += 1;
+  }
+
+  if (parsed.anyTerms.length > 0) {
+    const anyClauses: string[] = [];
+    for (const term of parsed.anyTerms) {
+      const key = `${prefix}Any${index}`;
+      anyClauses.push(buildLikeAnyField(fields, `@${key}`));
+      bind[key] = `%${term}%`;
+      index += 1;
+    }
+    clauses.push(`(${anyClauses.join(" OR ")})`);
+  }
+
+  for (const term of parsed.excludeTerms) {
+    const key = `${prefix}Exclude${index}`;
+    clauses.push(`NOT ${buildLikeAnyField(fields, `@${key}`)}`);
+    bind[key] = `%${term}%`;
+    index += 1;
+  }
+
+  return { clause: clauses.join(" AND "), bind };
+}
+
+function buildLikeAnyField(fields: string[], bindName: string): string {
+  return `(${fields.map((field) => `${field} LIKE ${bindName}`).join(" OR ")})`;
 }

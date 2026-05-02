@@ -29,7 +29,7 @@ export function LoginPage() {
         <div className="section-heading">
           <h1>로그인</h1>
           <span className={`status-pill ${status?.status === "AUTHENTICATED" ? "ok" : "warn"}`}>
-            {status?.status ?? "확인 전"}
+            {formatAuthStatus(status?.status)}
           </span>
         </div>
         <div className="button-row">
@@ -57,4 +57,11 @@ export function LoginPage() {
       </section>
     </div>
   );
+}
+
+function formatAuthStatus(status?: AuthStatus["status"]): string {
+  if (status === "AUTHENTICATED") return "로그인됨";
+  if (status === "AUTH_EXPIRED") return "세션 만료";
+  if (status === "AUTH_REQUIRED") return "로그인 필요";
+  return "확인 전";
 }

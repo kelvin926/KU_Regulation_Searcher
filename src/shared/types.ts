@@ -47,6 +47,7 @@ export interface DbStats {
   lastSyncStatus: string | null;
   lastSuccessCount: number;
   lastFailedCount: number;
+  storageBytes: number;
 }
 
 export interface SyncFailure {
@@ -79,6 +80,23 @@ export interface AuthStatus {
 export interface AiSettings {
   modelId: AiModelId;
   hasApiKey: boolean;
+  usage: AiUsageStats;
+}
+
+export interface AiUsageStats {
+  requestCount: number;
+  promptTokenCount: number;
+  candidatesTokenCount: number;
+  thoughtsTokenCount: number;
+  totalTokenCount: number;
+  lastUsedAt: string | null;
+}
+
+export interface AiTokenUsage {
+  promptTokenCount: number;
+  candidatesTokenCount: number;
+  thoughtsTokenCount: number;
+  totalTokenCount: number;
 }
 
 export interface SearchArticlesRequest {
@@ -104,6 +122,7 @@ export interface GeneratedAnswer {
   missing_evidence: boolean;
   warnings: string[];
   verification: AnswerVerification;
+  usage?: AiTokenUsage;
   rawText?: string;
 }
 
@@ -128,4 +147,30 @@ export interface SearchPageRequest {
   bodyQuery?: string;
   articleNo?: string;
   limit?: number;
+}
+
+export interface RegulationTargetCacheInfo {
+  hasRefreshed: boolean;
+  refreshedAt: string | null;
+  targetCount: number;
+}
+
+export type RegulationFileType = "ori" | "oriPdf" | "attach";
+
+export interface RegulationFile {
+  fileSeq: number;
+  fileType: RegulationFileType;
+  fileName: string;
+  label: string;
+}
+
+export interface DownloadRegulationFileRequest {
+  fileSeq: number;
+  fileType: RegulationFileType;
+  fileName?: string;
+}
+
+export interface DownloadResult {
+  filePath: string;
+  fileName: string;
 }

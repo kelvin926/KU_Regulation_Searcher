@@ -5,7 +5,6 @@ import {
   LogIn,
   RefreshCw,
   Search,
-  ShieldCheck,
 } from "lucide-react";
 import { useState } from "react";
 import { LoginPage } from "./pages/LoginPage";
@@ -14,16 +13,18 @@ import { AiSettingsPage } from "./pages/AiSettingsPage";
 import { AskPage } from "./pages/AskPage";
 import { SearchPage } from "./pages/SearchPage";
 import { DataPage } from "./pages/DataPage";
+import { APP_NAME, APP_VERSION } from "../shared/constants";
+import appIcon from "./assets/app-icon.png";
 
 type PageId = "login" | "sync" | "ai" | "ask" | "search" | "data";
 
 const NAV_ITEMS = [
   { id: "login", label: "로그인", icon: LogIn },
-  { id: "sync", label: "동기화", icon: RefreshCw },
+  { id: "sync", label: "규정 동기화", icon: RefreshCw },
   { id: "ai", label: "AI 설정", icon: KeyRound },
   { id: "ask", label: "규정 질의", icon: Bot },
   { id: "search", label: "규정 검색", icon: Search },
-  { id: "data", label: "데이터", icon: Database },
+  { id: "data", label: "저장 데이터", icon: Database },
 ] as const;
 
 export default function App() {
@@ -33,10 +34,10 @@ export default function App() {
     <div className="app-shell">
       <aside className="sidebar">
         <div className="brand">
-          <ShieldCheck size={24} />
+          <img src={appIcon} alt="" />
           <div>
-            <strong>KU Regulation</strong>
-            <span>Assistant</span>
+            <strong>{APP_NAME}</strong>
+            <span>v{APP_VERSION}</span>
           </div>
         </div>
         <nav>
@@ -55,6 +56,12 @@ export default function App() {
             );
           })}
         </nav>
+        <div className="sidebar-footer">
+          <span>제작자</span>
+          <a href="https://github.com/kelvin926" target="_blank" rel="noreferrer">
+            kelvin926
+          </a>
+        </div>
       </aside>
       <main className="content">
         {page === "login" && <LoginPage />}

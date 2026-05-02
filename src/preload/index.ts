@@ -4,11 +4,16 @@ import type {
   ApiResult,
   AuthStatus,
   AiSettings,
+  AiUsageStats,
   AskSearchResult,
   DbStats,
+  DownloadRegulationFileRequest,
+  DownloadResult,
   GenerateAnswerRequest,
   GeneratedAnswer,
   ArticleRecord,
+  RegulationFile,
+  RegulationTargetCacheInfo,
   RegulationTarget,
   SearchArticlesRequest,
   SearchPageRequest,
@@ -26,6 +31,7 @@ const api: KuRegulationApi = {
   },
   sync: {
     targets: (): Promise<ApiResult<RegulationTarget[]>> => ipcRenderer.invoke("sync:targets"),
+    targetCacheInfo: (): Promise<ApiResult<RegulationTargetCacheInfo>> => ipcRenderer.invoke("sync:targetCacheInfo"),
     refreshTargets: (): Promise<ApiResult<RegulationTarget[]>> => ipcRenderer.invoke("sync:refreshTargets"),
     start: (seqHistories?: number[]): Promise<ApiResult<SyncSummary>> => ipcRenderer.invoke("sync:start", seqHistories),
     stop: (): Promise<ApiResult<boolean>> => ipcRenderer.invoke("sync:stop"),
@@ -49,6 +55,8 @@ const api: KuRegulationApi = {
     deleteApiKey: (): Promise<ApiResult<AiSettings>> => ipcRenderer.invoke("settings:deleteApiKey"),
     testConnection: (apiKey?: string): Promise<ApiResult<boolean>> =>
       ipcRenderer.invoke("settings:testConnection", apiKey),
+    usage: (): Promise<ApiResult<AiUsageStats>> => ipcRenderer.invoke("settings:usage"),
+    resetUsage: (): Promise<ApiResult<AiSettings>> => ipcRenderer.invoke("settings:resetUsage"),
   },
   ask: {
     search: (request: SearchArticlesRequest): Promise<ApiResult<AskSearchResult>> =>
@@ -62,6 +70,12 @@ const api: KuRegulationApi = {
   },
   articles: {
     get: (id: number): Promise<ApiResult<ArticleRecord | null>> => ipcRenderer.invoke("articles:get", id),
+  },
+  files: {
+    attachments: (seq: number | null, seqHistory: number | null): Promise<ApiResult<RegulationFile[]>> =>
+      ipcRenderer.invoke("files:attachments", seq, seqHistory),
+    download: (request: DownloadRegulationFileRequest): Promise<ApiResult<DownloadResult>> =>
+      ipcRenderer.invoke("files:download", request),
   },
   data: {
     clearSession: (): Promise<ApiResult<boolean>> => ipcRenderer.invoke("data:clearSession"),

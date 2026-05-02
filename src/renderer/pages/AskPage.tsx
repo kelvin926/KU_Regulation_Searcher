@@ -5,6 +5,7 @@ import { DEFAULT_RAG_ARTICLES } from "../../shared/constants";
 import { ArticleCard } from "../components/ArticleCard";
 import { AnswerPanel } from "../components/AnswerPanel";
 import { CitationPanel } from "../components/CitationPanel";
+import { SearchOperatorHint } from "../components/SearchOperatorHint";
 import { WarningBox } from "../components/WarningBox";
 import { getErrorMessage, unwrap } from "../lib/api";
 
@@ -87,6 +88,7 @@ export function AskPage() {
             }}
             placeholder="예: 일반휴학은 몇 학기까지 가능한가요?"
           />
+          <SearchOperatorHint />
           <div className="button-row">
             <button type="button" disabled={busy || question.trim().length === 0} onClick={findArticles}>
               <Search size={17} />
@@ -123,13 +125,14 @@ export function AskPage() {
                   setSelectedIds(next);
                 }}
                 compact
+                highlightTerms={keywords}
               />
             ))}
             {articles.length === 0 && <div className="empty-panel">검색된 조항이 없습니다.</div>}
           </div>
         </section>
         <section className="panel">
-          <CitationPanel articles={selectedArticles} />
+          <CitationPanel articles={selectedArticles} highlightTerms={keywords} />
         </section>
       </div>
     </div>

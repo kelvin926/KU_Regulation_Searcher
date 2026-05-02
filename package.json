@@ -1,7 +1,7 @@
 {
   "name": "ku-regulation-searcher",
-  "version": "0.3.0",
-  "description": "고려대학교 규정 로컬 검색 및 Gemini RAG Windows GUI 앱",
+  "version": "0.4.0",
+  "description": "고려대학교 규정 로컬 검색 및 Gemini RAG Windows 앱",
   "author": "kelvin926",
   "license": "MIT",
   "main": "dist/main/index.js",
@@ -13,14 +13,16 @@
     "typecheck": "tsc --noEmit -p tsconfig.renderer.json && tsc --noEmit -p tsconfig.main.json",
     "build": "npm run typecheck && vite build && tsc -p tsconfig.main.json",
     "test": "npm rebuild better-sqlite3 && vitest run",
-    "dist:win": "npm run build && npm run rebuild:electron && electron-builder --win nsis --x64 --publish never",
-    "rebuild:electron": "electron-rebuild -f -w better-sqlite3"
+    "dist:win": "npm run build && npm run rebuild:electron && electron-builder --win dir --x64 --publish never && npm run win:icon && electron-builder --win nsis --x64 --prepackaged release/win-unpacked --publish never",
+    "rebuild:electron": "electron-rebuild -f -w better-sqlite3",
+    "win:icon": "node scripts/apply-win-icon.cjs"
   },
   "dependencies": {
     "@google/genai": "^1.31.0",
     "better-sqlite3": "^12.5.0",
     "cheerio": "^1.1.2",
     "lucide-react": "^0.554.0",
+    "pretendard": "^1.3.9",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "zod": "^4.1.12"
@@ -43,7 +45,7 @@
   },
   "build": {
     "appId": "kr.ac.korea.regulation.assistant",
-    "productName": "KU Regulation Assistant",
+    "productName": "KU Regulation Searcher",
     "directories": {
       "output": "release"
     },
@@ -54,7 +56,14 @@
     "asarUnpack": [
       "node_modules/better-sqlite3/**/*"
     ],
+    "extraResources": [
+      {
+        "from": "build/icon.png",
+        "to": "icon.png"
+      }
+    ],
     "win": {
+      "icon": "build/icon.ico",
       "signAndEditExecutable": false,
       "target": [
         {
@@ -67,6 +76,9 @@
       "artifactName": "KU-Regulation-Setup-${version}.${ext}"
     },
     "nsis": {
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "installerHeaderIcon": "build/icon.ico",
       "oneClick": false,
       "perMachine": false,
       "allowElevation": false,
@@ -74,7 +86,7 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "deleteAppDataOnUninstall": false,
-      "shortcutName": "KU Regulation Assistant"
+      "shortcutName": "KU Regulation Searcher"
     }
   }
 }

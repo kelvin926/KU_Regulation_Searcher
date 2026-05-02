@@ -1,16 +1,20 @@
 import { ExternalLink } from "lucide-react";
 import type { ArticleRecord } from "../../shared/types";
+import { HighlightedText } from "./HighlightedText";
+import { RegulationDownloadButtons } from "./RegulationDownloadButtons";
 
 export function ArticleCard({
   article,
   checked,
   onCheckedChange,
   compact = false,
+  highlightTerms = [],
 }: {
   article: ArticleRecord;
   checked?: boolean;
   onCheckedChange?: (checked: boolean) => void;
   compact?: boolean;
+  highlightTerms?: string[];
 }) {
   return (
     <article className="article-card">
@@ -25,8 +29,16 @@ export function ArticleCard({
         )}
         <div>
           <div className="article-title">
-            {article.regulation_name} {article.article_no}
-            {article.article_title ? ` (${article.article_title})` : ""}
+            <HighlightedText text={`${article.regulation_name} ${article.article_no}`} terms={highlightTerms} />
+            {article.article_title ? (
+              <>
+                {" ("}
+                <HighlightedText text={article.article_title} terms={highlightTerms} />
+                {")"}
+              </>
+            ) : (
+              ""
+            )}
           </div>
           <div className="meta-line">
             ID {article.id} · 수집 {formatDate(article.fetched_at)}
@@ -37,7 +49,10 @@ export function ArticleCard({
           <ExternalLink size={16} />
         </a>
       </div>
-      <pre className={compact ? "article-body compact" : "article-body"}>{article.article_body}</pre>
+      <pre className={compact ? "article-body compact" : "article-body"}>
+        <HighlightedText text={article.article_body} terms={highlightTerms} />
+      </pre>
+      <RegulationDownloadButtons article={article} compact={compact} />
     </article>
   );
 }

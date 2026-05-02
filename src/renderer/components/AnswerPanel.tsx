@@ -28,7 +28,9 @@ export function AnswerPanel({ answer, articles = [] }: { answer: GeneratedAnswer
       {answer.verification.warningMessage && <div className="validation-warning">{answer.verification.warningMessage}</div>}
       <div className="answer-text">{answer.answer}</div>
       <div className="meta-line">
-        신뢰도 {answer.confidence} · 근거 부족 {answer.missing_evidence ? "예" : "아니오"}
+        신뢰도 {formatConfidence(answer.confidence)} · 근거 부족 {answer.missing_evidence ? "예" : "아니오"}
+        {answer.usage &&
+          ` · 이번 답변 토큰 ${answer.usage.totalTokenCount.toLocaleString("ko-KR")}개 (입력 ${answer.usage.promptTokenCount.toLocaleString("ko-KR")} / 출력 ${answer.usage.candidatesTokenCount.toLocaleString("ko-KR")})`}
       </div>
       {highlightedArticles.length > 0 && (
         <div className="answer-highlight-list">
@@ -47,4 +49,10 @@ export function AnswerPanel({ answer, articles = [] }: { answer: GeneratedAnswer
       )}
     </section>
   );
+}
+
+function formatConfidence(value: GeneratedAnswer["confidence"]): string {
+  if (value === "high") return "높음";
+  if (value === "medium") return "보통";
+  return "낮음";
 }

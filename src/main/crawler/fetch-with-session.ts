@@ -8,12 +8,38 @@ export interface SessionFetchResult {
   text: string;
 }
 
+export interface SessionBinaryFetchResult {
+  status: number;
+  url: string;
+  headers: Headers;
+  arrayBuffer: ArrayBuffer;
+}
+
 export interface SessionFetchOptions {
   method?: "GET" | "POST";
   headers?: Record<string, string>;
+  body?: BodyInit;
 }
 
 export async function fetchWithSession(url: string, options: SessionFetchOptions = {}): Promise<SessionFetchResult> {
+  const response = await requestWithSession(url, options);
+  const text = await response.text();
+  if (looksLikeLoginPage(text, response.url)) {
+    throw new AppError("AUTH_EXPIRED");
+  }
+  return { status: response.status, url: response.url, text };
+}
+
+export async function fetchBinaryWithSession(
+  url: string,
+  options: SessionFetchOptions = {},
+): Promise<SessionBinaryFetchResult> {
+  const response = await requestWithSession(url, options);
+  const arrayBuffer = await response.arrayBuffer();
+  return { status: response.status, url: response.url, headers: response.headers, arrayBuffer };
+}
+
+async function requestWithSession(url: string, options: SessionFetchOptions): Promise<Response> {
   const cookieHeader = await buildCookieHeader(url);
 
   try {
@@ -22,23 +48,20 @@ export async function fetchWithSession(url: string, options: SessionFetchOptions
       redirect: "follow",
       headers: {
         Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        "User-Agent": "KU-Regulation-Assistant/0.3.0",
+        "User-Agent": "KU-Regulation-Searcher/0.4.0",
         ...(options.headers ?? {}),
         ...(cookieHeader ? { Cookie: cookieHeader } : {}),
       },
+      body: options.body,
     });
 
-    const text = await response.text();
     if (response.status === 401 || response.status === 403) {
       throw new AppError("AUTH_EXPIRED");
     }
     if (!response.ok) {
       throw new AppError(response.status >= 500 ? "NETWORK_ERROR" : "UNKNOWN_API_ERROR");
     }
-    if (looksLikeLoginPage(text, response.url)) {
-      throw new AppError("AUTH_EXPIRED");
-    }
-    return { status: response.status, url: response.url, text };
+    return response;
   } catch (error) {
     if (error instanceof AppError) throw error;
     throw new AppError("NETWORK_ERROR", error instanceof Error ? error.message : undefined);

@@ -1,7 +1,10 @@
 import { CheckSquare, PauseCircle, RefreshCw, RotateCw, Square } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import type { DbStats, RegulationTarget, SyncFailure, SyncProgress } from "../../shared/types";
+import type { DbStats, RegulationTarget, RegulationTargetCacheInfo, SyncFailure, SyncProgress } from "../../shared/types";
 import { getErrorMessage, unwrap } from "../lib/api";
+import { extractSearchTerms, matchesSearchQuery } from "../lib/searchOperators";
+import { HighlightedText } from "../components/HighlightedText";
+import { SearchOperatorHint } from "../components/SearchOperatorHint";
 import { WarningBox } from "../components/WarningBox";
 
 interface TargetFolder {
@@ -16,20 +19,22 @@ export function SyncPage() {
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [progress, setProgress] = useState<SyncProgress | null>(null);
   const [stats, setStats] = useState<DbStats | null>(null);
+  const [targetCacheInfo, setTargetCacheInfo] = useState<RegulationTargetCacheInfo | null>(null);
   const [failures, setFailures] = useState<SyncFailure[]>([]);
   const [message, setMessage] = useState<string | null>(null);
   const [messageTone, setMessageTone] = useState<"info" | "warning" | "danger">("info");
   const [filter, setFilter] = useState("");
   const [loadingTargets, setLoadingTargets] = useState(false);
   const visibleTargets = useMemo(() => {
-    const query = filter.trim().toLowerCase();
+    const query = filter.trim();
     if (!query) return targets;
-    return targets.filter(
-      (target) =>
-        target.regulationName.toLowerCase().includes(query) ||
-        target.category?.toLowerCase().includes(query) ||
-        target.categoryPath?.some((part) => part.toLowerCase().includes(query)) ||
-        String(target.seqHistory).includes(query),
+    return targets.filter((target) =>
+      matchesSearchQuery(
+        [target.regulationName, target.category, ...(target.categoryPath ?? []), String(target.seqHistory), String(target.seq ?? "")]
+          .filter(Boolean)
+          .join(" "),
+        query,
+      ),
     );
   }, [filter, targets]);
   const targetTree = useMemo(() => buildTargetTree(visibleTargets), [visibleTargets]);
@@ -51,6 +56,7 @@ export function SyncPage() {
     });
     setStats(unwrap(await window.kuRegulation.db.stats()));
     setFailures(unwrap(await window.kuRegulation.db.failures()));
+    setTargetCacheInfo(unwrap(await window.kuRegulation.sync.targetCacheInfo()));
   }
 
   async function refreshTargetList() {
@@ -66,9 +72,10 @@ export function SyncPage() {
       });
       setMessageTone("info");
       setMessage(`규정 목록 새로고침 완료: ${loadedTargets.length}개를 불러왔습니다. 필요한 규정만 선택해서 동기화하세요.`);
+      setTargetCacheInfo(unwrap(await window.kuRegulation.sync.targetCacheInfo()));
     } catch (error) {
       setMessageTone("danger");
-      setMessage(getErrorMessage(error));
+      setMessage(formatSyncActionError(error));
     } finally {
       setLoadingTargets(false);
     }
@@ -82,7 +89,7 @@ export function SyncPage() {
       await refresh();
     } catch (error) {
       setMessageTone("danger");
-      setMessage(getErrorMessage(error));
+      setMessage(formatSyncActionError(error));
     }
   }
 
@@ -106,12 +113,12 @@ export function SyncPage() {
       <section className="panel">
         <div className="section-heading">
           <h1>동기화</h1>
-          <span className="status-pill">{progress?.status ?? "idle"}</span>
+          <span className="status-pill">{formatSyncStatus(progress?.status ?? "idle")}</span>
         </div>
         <div className="button-row">
           <button type="button" disabled={loadingTargets} onClick={refreshTargetList}>
-            <RotateCw size={17} />
-            규정 목록 새로고침
+            <RotateCw size={17} className={loadingTargets ? "icon-spin" : undefined} />
+            {loadingTargets ? "규정 목록 새로고침 중" : "규정 목록 새로고침"}
           </button>
           <button type="button" disabled={selected.size === 0} onClick={() => start(Array.from(selected))}>
             <RefreshCw size={17} />
@@ -139,12 +146,24 @@ export function SyncPage() {
             className="target-filter"
             value={filter}
             onChange={(event) => setFilter(event.currentTarget.value)}
-            placeholder="규정명, 분류, SEQ_HISTORY로 검색"
+            placeholder='예: 학칙 OR 대학원 -세칙'
           />
           <span className="meta-line">
             전체 {targets.length}개 · 표시 {visibleTargets.length}개 · 선택 {selected.size}개
           </span>
         </div>
+        <SearchOperatorHint />
+        {loadingTargets && <WarningBox tone="info">규정 목록을 새로고침 중입니다. 완료될 때까지 잠시 기다려주세요.</WarningBox>}
+        {!targetCacheInfo?.hasRefreshed ? (
+          <WarningBox tone="warning">
+            규정 목록을 아직 새로고침하지 않았습니다. 로그인이 필요하면 로그인 탭에서 로그인 열기를 누르고, 고려대 공식 로그인 창에서 로그인한 뒤 창을 닫고 다시 시도하세요.
+          </WarningBox>
+        ) : (
+          <div className="meta-line">
+            규정 목록 마지막 새로고침:{" "}
+            {targetCacheInfo.refreshedAt ? new Date(targetCacheInfo.refreshedAt).toLocaleString("ko-KR") : "확인 불가"}
+          </div>
+        )}
         <div className="target-tree">
           {targetTree.map((folder) => (
             <TargetFolderNode
@@ -153,6 +172,7 @@ export function SyncPage() {
               selected={selected}
               onSelectFolder={selectFolder}
               onTargetChecked={setTargetChecked}
+              highlightTerms={extractSearchTerms(filter)}
             />
           ))}
           {visibleTargets.length === 0 && <div className="empty-panel">표시할 규정이 없습니다.</div>}
@@ -197,11 +217,13 @@ function TargetFolderNode({
   selected,
   onSelectFolder,
   onTargetChecked,
+  highlightTerms,
 }: {
   folder: TargetFolder;
   selected: Set<number>;
   onSelectFolder: (folder: TargetFolder) => void;
   onTargetChecked: (seqHistory: number, checked: boolean) => void;
+  highlightTerms: string[];
 }) {
   const totalCount = collectFolderSeqHistories(folder).length;
   const selectedCount = collectFolderSeqHistories(folder).filter((seqHistory) => selected.has(seqHistory)).length;
@@ -233,6 +255,7 @@ function TargetFolderNode({
             selected={selected}
             onSelectFolder={onSelectFolder}
             onTargetChecked={onTargetChecked}
+            highlightTerms={highlightTerms}
           />
         ))}
         {folder.targets.map((target) => (
@@ -242,7 +265,9 @@ function TargetFolderNode({
               checked={selected.has(target.seqHistory)}
               onChange={(event) => onTargetChecked(target.seqHistory, event.currentTarget.checked)}
             />
-            <span>{target.regulationName}</span>
+            <span>
+              <HighlightedText text={target.regulationName} terms={highlightTerms} />
+            </span>
             <span className="target-meta">
               {target.seq && <code>SEQ {target.seq}</code>}
               <code>SEQ_HISTORY {target.seqHistory}</code>
@@ -301,6 +326,31 @@ function collectFolderSeqHistories(folder: TargetFolder): number[] {
     ...folder.targets.map((target) => target.seqHistory),
     ...folder.folders.flatMap((child) => collectFolderSeqHistories(child)),
   ];
+}
+
+function formatSyncStatus(status: SyncProgress["status"]): string {
+  switch (status) {
+    case "running":
+      return "동기화 중";
+    case "stopping":
+      return "중지 중";
+    case "completed":
+      return "완료";
+    case "failed":
+      return "실패";
+    case "cancelled":
+      return "취소됨";
+    default:
+      return "대기 중";
+  }
+}
+
+function formatSyncActionError(error: unknown): string {
+  const message = getErrorMessage(error);
+  if (message.includes("[AUTH_REQUIRED]") || message.includes("[AUTH_EXPIRED]")) {
+    return `${message} 로그인 탭에서 로그인 열기를 누르고, 고려대 공식 로그인 창에서 로그인한 뒤 창을 닫고 다시 시도하세요.`;
+  }
+  return message;
 }
 
 function Stat({ label, value }: { label: string; value: number }) {
