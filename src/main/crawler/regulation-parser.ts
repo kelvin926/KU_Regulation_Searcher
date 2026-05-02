@@ -33,7 +33,12 @@ export function normalizeArticleNo(value: string): string {
 
 export function extractName(html: string): string | null {
   const $ = cheerio.load(html);
-  const name = ($("div.lawname").first().text() || $("span.lawname").first().text() || "")
+  const name = (
+    $("div.lawname").first().text() ||
+    $("span.lawname").first().text() ||
+    $(".rule_subject .Stit").first().text() ||
+    ""
+  )
     .replace(/\s+/g, " ")
     .trim();
   return name || null;
@@ -143,12 +148,16 @@ export function parseRegulationHtml(html: string, fallbackName: string): ParsedR
     return { regulationName, articles: parsed };
   }
 
+  const readableText = extractReadableText($);
+  const textParsed = fallbackParseByText(readableText).map((article, index) => ({
+    ...article,
+    seqContents: index + 1,
+  }));
+  if (textParsed.length > 0) return { regulationName, articles: textParsed };
+
   return {
     regulationName,
-    articles: fallbackParseByText($("body").text()).map((article, index) => ({
-      ...article,
-      seqContents: index + 1,
-    })),
+    articles: fallbackParseWholeDocument($, readableText, fallbackName),
   };
 }
 
@@ -248,4 +257,105 @@ function fallbackParseByText(text: string): ParsedArticleForDb[] {
       };
     })
     .filter((article) => article.articleBody.length > 0);
+}
+
+function fallbackParseWholeDocument(
+  $: cheerio.CheerioAPI,
+  readableText: string,
+  fallbackName: string,
+): ParsedArticleForDb[] {
+  const text = cleanDocumentFallbackText(readableText);
+  if (isNoDocPage($)) {
+    return [
+      {
+        articleNo: "원문",
+        articleTitle: "원문 파일",
+        articleBody: [
+          fallbackName,
+          "이 규정은 규정관리시스템에서 HTML 본문을 제공하지 않고 HWP/PDF 원문 파일로 제공됩니다.",
+          "로컬 검색 DB에는 이 규정의 원문 전문이 저장되지 않았습니다.",
+          "규정 검색 화면의 HWP/PDF 다운로드 버튼으로 원문을 확인하세요.",
+        ].join("\n"),
+        seqContents: 1,
+      },
+    ];
+  }
+
+  if (!isMeaningfulFallbackText($, text)) return [];
+
+  if (text.includes("주관부서의 요청에 따라 해당 규정은 규정집에 미등재")) {
+    return [
+      {
+        articleNo: "안내",
+        articleTitle: "미등재 안내",
+        articleBody: text,
+        seqContents: 1,
+      },
+    ];
+  }
+
+  if (text.includes("[별표/서식 파일]") || text.includes("별지서식다운로드")) {
+    return [
+      {
+        articleNo: "별표/서식",
+        articleTitle: "별표 및 서식",
+        articleBody: text,
+        seqContents: 1,
+      },
+    ];
+  }
+
+  return [
+    {
+      articleNo: "본문",
+      articleTitle: null,
+      articleBody: text,
+      seqContents: 1,
+    },
+  ];
+}
+
+function extractReadableText($: cheerio.CheerioAPI): string {
+  const $body = $("body").clone();
+  $body
+    .find(
+      [
+        "script",
+        "style",
+        "noscript",
+        "iframe",
+        "select",
+        "button",
+        "input",
+        "img",
+        ".btn_box",
+        ".search_area",
+        ".font_control",
+        ".regcont_tab",
+        "#Popup_lawtit",
+      ].join(", "),
+    )
+    .remove();
+  return cleanText($body.text());
+}
+
+function cleanDocumentFallbackText(text: string): string {
+  return cleanText(text)
+    .replace(/^연혁숨기기\s*연혁보기\s*/u, "")
+    .replace(/\s*별지서식다운로드\s*/gu, "\n")
+    .replace(/\n{3,}/gu, "\n\n")
+    .trim();
+}
+
+function isNoDocPage($: cheerio.CheerioAPI): boolean {
+  return $(".nodoc_topwrap, .root_info_nodoc").length > 0;
+}
+
+function isMeaningfulFallbackText($: cheerio.CheerioAPI, text: string): boolean {
+  const compact = text.replace(/\s+/g, " ").trim();
+  if (compact.length < 40) return false;
+  if (compact.includes("처리 중 입니다") && compact.length < 140) return false;
+  if ($("#lawDetailContent, #lawFullTitle").length > 0 && !/제\s*\d+\s*조/u.test(compact)) return false;
+  if (!/[가-힣A-Za-z]/u.test(compact)) return false;
+  return true;
 }

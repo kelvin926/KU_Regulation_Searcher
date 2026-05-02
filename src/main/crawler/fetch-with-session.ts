@@ -70,14 +70,17 @@ async function requestWithSession(url: string, options: SessionFetchOptions): Pr
 
 export function looksLikeLoginPage(html: string, url?: string): boolean {
   const lowerUrl = (url ?? "").toLowerCase();
-  if (lowerUrl.includes("login")) return true;
   const compact = html.replace(/\s+/g, " ").toLowerCase();
-  const hasPasswordInput = compact.includes('type="password"') || compact.includes("type='password'");
-  const hasLoginForm = compact.includes("<form") && (compact.includes("login") || compact.includes("로그인"));
-  return (
-    (hasPasswordInput && (compact.includes("login") || compact.includes("로그인") || compact.includes("아이디"))) ||
-    (hasLoginForm && (compact.includes("password") || compact.includes("비밀번호")))
-  );
+  const hasPasswordInput = /<input\b[^>]*\btype\s*=\s*["']?password["']?/iu.test(compact);
+  if (!hasPasswordInput) return false;
+  if (lowerUrl.includes("login")) return true;
+
+  const forms = compact.match(/<form\b[\s\S]*?<\/form>/giu) ?? [];
+  return forms.some((form) => {
+    const formHasPasswordInput = /<input\b[^>]*\btype\s*=\s*["']?password["']?/iu.test(form);
+    if (!formHasPasswordInput) return false;
+    return form.includes("login") || form.includes("로그인") || form.includes("아이디") || form.includes("비밀번호");
+  });
 }
 
 async function buildCookieHeader(url: string): Promise<string> {

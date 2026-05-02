@@ -3,6 +3,7 @@ import fs from "node:fs";
 import {
   DEFAULT_REQUEST_DELAY_MS,
   KOREA_POLICY_CONTENT_URL,
+  KOREA_POLICY_ORIGIN,
   MVP_REGULATION_TARGETS,
 } from "../../shared/constants";
 import type { RegulationTarget, RegulationTargetCacheInfo, SyncFailure, SyncProgress, SyncSummary } from "../../shared/types";
@@ -168,22 +169,36 @@ export class RegulationSyncService {
   private async syncOne(target: RegulationTarget): Promise<void> {
     const url = target.sourceUrl || `${KOREA_POLICY_CONTENT_URL}?SEQ_HISTORY=${target.seqHistory}`;
     const fetchedAt = new Date().toISOString();
-    const result = await fetchWithSession(url);
+    let result = await fetchWithSession(url);
+    let sourceUrl = url;
 
-    if (!result.text.includes("lawname")) {
-      throw new AppError("NOT_FOUND", "규정 본문을 찾을 수 없습니다.");
+    let parsed = parseRegulationHtml(result.text, target.regulationName);
+    if (parsed.articles.length === 0 && target.seq) {
+      const fullViewUrl = buildFullViewUrl(target);
+      if (fullViewUrl !== url) {
+        const fallbackResult = await fetchWithSession(fullViewUrl);
+        const fallbackParsed = parseRegulationHtml(fallbackResult.text, target.regulationName);
+        if (fallbackParsed.articles.length > 0) {
+          result = fallbackResult;
+          sourceUrl = fullViewUrl;
+          parsed = fallbackParsed;
+        }
+      }
     }
 
-    const parsed = parseRegulationHtml(result.text, target.regulationName);
     if (parsed.articles.length === 0) {
-      throw new AppError("SYNC_FAILED", "파싱된 조문이 없습니다.");
+      const message = isProcessingPlaceholder(result.text)
+        ? "규정관리시스템이 본문 대신 처리 중 페이지를 반환했습니다."
+        : "파싱된 조문이 없습니다.";
+      throw new AppError(isProcessingPlaceholder(result.text) ? "NOT_FOUND" : "SYNC_FAILED", message);
     }
 
     this.db.upsertRegulation(
       {
         regulationName: target.regulationName,
         seqHistory: target.seqHistory,
-        sourceUrl: url,
+        seq: target.seq,
+        sourceUrl,
         fetchedAt,
       },
       parsed,
@@ -336,4 +351,13 @@ function compareNumberPath(a?: readonly number[], b?: readonly number[]): number
     if (left !== right) return left - right;
   }
   return 0;
+}
+
+function buildFullViewUrl(target: RegulationTarget): string {
+  return `${KOREA_POLICY_ORIGIN}/lmxsrv/law/lawFullView.do?SEQ=${target.seq}&SEQ_HISTORY=${target.seqHistory}`;
+}
+
+function isProcessingPlaceholder(html: string): boolean {
+  const compact = html.replace(/<[^>]*>/gu, " ").replace(/\s+/g, " ").trim();
+  return compact.includes("처리 중 입니다") && compact.length < 160;
 }

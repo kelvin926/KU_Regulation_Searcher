@@ -10,7 +10,7 @@ Branch: `main`
 | Check | Result |
 | --- | --- |
 | `npm install` | Passed |
-| `npm test` | Passed, 6 files / 12 tests |
+| `npm test` | Passed, 9 files / 24 tests |
 | `npm run build` | Passed |
 | `npm run rebuild:electron` | Passed |
 | `npm run dist:win` | Passed |
@@ -20,12 +20,12 @@ Branch: `main`
 
 | Check | Result |
 | --- | --- |
-| Installer file | `release\KU-Regulation-Setup-0.5.0.exe` |
-| Installer size | 192,968,174 bytes, about 184.0 MiB |
-| SHA-256 | `62D5C19B84A5E9070DCEA0812219F38B078FF58DD72C3E0FA3C6EFDE55FDF5CA` |
+| Installer file | `release\KU-Regulation-Setup-0.8.0.exe` |
+| Installer size | 179,028,089 bytes, about 170.7 MiB |
+| SHA-256 | `29CC8E2BC2E1AA6A514C42C67CB17F4C07B20555D39669E798CBDC1EDED6FC78` |
 | Install type | Per-user NSIS install |
 | Admin permission | Not required in silent install validation |
-| Install success | Passed, exit code 0 |
+| Install/update success | Passed, exit code 0 |
 | App launch success | Passed |
 | Window title | `KU Regulation Searcher` |
 | Process name | `KU Regulation Searcher` |
@@ -34,7 +34,8 @@ Branch: `main`
 | Installer icon | Verified by extracting the associated icon from the setup exe |
 | Packaged exe icon | Verified by extracting the associated icon from `release\win-unpacked\KU Regulation Searcher.exe` |
 | Installed exe icon | Verified by extracting the associated icon from the installed exe |
-| SmartScreen | Possible because the MVP installer is unsigned |
+| Installed version | `KU Regulation Searcher 0.8.0` in the current-user uninstall registry |
+| SmartScreen | Possible because the installer is unsigned |
 
 Note: this PC already had a pre-0.4.0 install under `%LOCALAPPDATA%\Programs\KU Regulation Assistant`. Updating in place keeps that installation folder for compatibility, but the visible app name, exe name, window title, shortcut name, and icon are `KU Regulation Searcher`. Fresh per-user installs use the current product name.
 
@@ -51,6 +52,18 @@ Note: this PC already had a pre-0.4.0 install under `%LOCALAPPDATA%\Programs\KU 
 | Regulation list cache | `%APPDATA%\KU Regulation Searcher\config\regulation-targets.json` exists |
 | Legacy migration | `%APPDATA%\KU Regulation Assistant\` is copied to the new 0.4.0 path when needed |
 | Repo data leakage | No repo-root `data`, `auth`, `logs`, `.env`, sqlite, or encrypted session files were created |
+
+## 0.8.0 validation notes
+
+- Investigated representative sync failures reported from the Windows PC.
+- Regulations that return a `처리 중 입니다` placeholder from the iframe content endpoint are retried through the full-view page.
+- File-only regulations that expose HWP/PDF downloads but no HTML body are now saved as a `원문 파일` record instead of failing as `NOT_FOUND`.
+- Unnumbered guidelines and directions are now saved as a searchable `본문` record instead of failing with `파싱된 조문이 없습니다`.
+- Department-unlisted regulations are now saved as an `안내` record explaining that the regulation is not listed in the regulation book at the department's request.
+- Appendix/form-only pages are now saved as `별표/서식` records so file names remain searchable.
+- Large regulation pages that contain ordinary forms and `login`/`password` words are no longer mistaken for expired login sessions unless an actual password input form is present.
+- Rechecked the reported failing examples, including `10-0-159`, `10-0-231`, `5-0-145`, `3-1-177`, and `1-0-1`; each produced at least one storable record after the fix.
+- A temporary-DB sync check for representative failures completed with 5/5 successes and 122 saved article records.
 
 ## 0.5.0 validation notes
 
