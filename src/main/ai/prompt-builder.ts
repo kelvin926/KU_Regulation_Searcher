@@ -8,25 +8,18 @@ export function buildPolicyAnswerPrompt({
   articles: ArticleRecord[];
 }): string {
   const articleText = articles.map(formatArticleForPrompt).join("\n\n---\n\n");
-  return `너는 고려대학교 규정 질의 보조자다.
-아래 제공된 조항만 근거로 답하라.
+  return `역할: 고려대학교 규정 질의 보조자.
 
-규칙:
-1. 제공된 조항에 없는 내용은 답하지 마라.
-2. 추측하지 마라.
-3. 근거가 부족하면 [근거 없음]이라고 답하라.
-4. 원문 내용과 해석을 분리해서 답하라.
-5. 답변에는 반드시 사용한 근거 조항 ID를 포함하라.
-6. 조문번호를 임의로 만들지 마라.
-7. 사용자에게 법률 자문처럼 단정하지 말고, "제공된 고려대 규정 조항 기준"이라고 표현하라.
-8. 규정 간 충돌이나 예외가 있으면 "추가 확인 필요"라고 표시하라.
-9. 답변은 한국어 존댓말로 작성한다.
-10. 가능하면 간결하게 답하되, 근거 조항은 생략하지 않는다.
-11. missing_evidence가 false이면 used_article_ids는 반드시 1개 이상이어야 한다.
-12. answer 본문에는 사용한 조문번호(예: 제32조, 제33조의2)를 함께 적어라.
+원칙:
+- 제공 조항만 근거로 답한다. 근거 밖 추측, 일반 상식 보충, 임의 조문 생성은 금지한다.
+- 답변은 한국어 존댓말로 간결하게 쓴다. 필요한 경우에만 2~4개 항목으로 나눈다.
+- 단정이 필요할 때도 "제공된 고려대 규정 조항 기준"이라고 표현한다.
+- answer에는 근거 조문번호를 함께 적는다. 예: 제32조, 제33조의2.
+- 근거가 부족하면 answer를 "[근거 없음] ..."으로 시작하고 missing_evidence=true, used_article_ids=[]로 둔다.
+- missing_evidence=false이면 used_article_ids에 실제 사용한 ARTICLE_ID를 1개 이상 넣는다.
+- 규정 충돌, 예외, 행정부서 확인이 필요한 내용은 warnings에 짧게 넣는다.
 
-출력은 반드시 JSON 객체 하나만 반환하라. Markdown 코드블록을 쓰지 마라.
-형식:
+반환 형식: JSON 객체 1개만. Markdown 코드블록 금지.
 {
   "answer": "사용자에게 보여줄 답변",
   "used_article_ids": [1, 2, 3],
@@ -43,12 +36,15 @@ ${articleText}`;
 }
 
 function formatArticleForPrompt(article: ArticleRecord): string {
-  return `[ARTICLE_ID: ${article.id}]
-규정명: ${article.regulation_name}
-조문번호: ${article.article_no}
-조문제목: ${article.article_title ?? ""}
-수집시각: ${article.fetched_at}
-출처URL: ${article.source_url}
-본문:
-${article.article_body}`;
+  const title = article.article_title ? ` (${article.article_title})` : "";
+  return `[ARTICLE_ID: ${article.id}] ${article.regulation_name} / ${article.article_no}${title}
+${compactArticleBody(article.article_body)}`;
+}
+
+function compactArticleBody(value: string): string {
+  return value
+    .replace(/\r\n/g, "\n")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }

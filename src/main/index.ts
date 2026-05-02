@@ -128,6 +128,7 @@ function registerIpcHandlers(): void {
 
   ipcMain.handle("db:stats", async () => wrap(() => db.getStats()));
   ipcMain.handle("db:failures", async () => wrap(() => db.listLatestFailures()));
+  ipcMain.handle("db:storedSeqHistories", async () => wrap(() => db.listStoredSeqHistories()));
   ipcMain.handle("db:clear", async () =>
     wrap(() => {
       db.clearDatabase();

@@ -53,7 +53,7 @@ export class GeminiClient {
           responseMimeType,
           ...(responseMimeType === "application/json" ? { responseSchema: ANSWER_RESPONSE_SCHEMA } : {}),
           temperature: 0.1,
-          maxOutputTokens: 2048,
+          maxOutputTokens: 1536,
         },
       });
       const text = response.text;

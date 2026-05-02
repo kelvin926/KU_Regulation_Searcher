@@ -62,9 +62,11 @@ export interface SyncProgress {
   totalCount: number;
   successCount: number;
   failedCount: number;
+  currentSeqHistory: number | null;
   currentName: string | null;
   message: string;
   failures: SyncFailure[];
+  completedSeqHistories: number[];
 }
 
 export interface SyncSummary extends SyncProgress {

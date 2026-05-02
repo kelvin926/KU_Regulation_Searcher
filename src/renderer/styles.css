@@ -245,6 +245,15 @@ code {
   margin: 14px 0;
 }
 
+.button-row.selection-actions {
+  margin-top: -4px;
+}
+
+.selection-actions button {
+  min-height: 34px;
+  font-size: 13px;
+}
+
 .icon-spin {
   animation: icon-spin 900ms linear infinite;
 }
@@ -436,9 +445,40 @@ code {
   display: flex;
   justify-content: flex-end;
   align-items: center;
+  flex-wrap: wrap;
   gap: 6px;
   color: #667085;
   font-size: 12px;
+}
+
+.target-sync-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  border-radius: 999px;
+  padding: 0 8px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.target-sync-badge.completed {
+  background: #e4f3ea;
+  color: #17663a;
+}
+
+.target-sync-badge.pending {
+  background: #eceff3;
+  color: #475467;
+}
+
+.target-sync-badge.failed {
+  background: #ffe5e2;
+  color: #b3261e;
+}
+
+.target-sync-badge.running {
+  background: #e7f0ff;
+  color: #124e9f;
 }
 
 .progress-block {

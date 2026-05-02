@@ -38,6 +38,7 @@ export interface KuRegulationApi {
   db: {
     stats: () => Promise<ApiResult<DbStats>>;
     failures: () => Promise<ApiResult<SyncFailure[]>>;
+    storedSeqHistories: () => Promise<ApiResult<number[]>>;
     clear: () => Promise<ApiResult<DbStats>>;
   };
   settings: {

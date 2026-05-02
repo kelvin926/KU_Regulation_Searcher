@@ -14,6 +14,8 @@ interface TargetFolder {
   targets: RegulationTarget[];
 }
 
+type TargetSyncStatus = "pending" | "running" | "completed" | "failed";
+
 export function SyncPage() {
   const [targets, setTargets] = useState<RegulationTarget[]>([]);
   const [selected, setSelected] = useState<Set<number>>(new Set());
@@ -21,6 +23,8 @@ export function SyncPage() {
   const [stats, setStats] = useState<DbStats | null>(null);
   const [targetCacheInfo, setTargetCacheInfo] = useState<RegulationTargetCacheInfo | null>(null);
   const [failures, setFailures] = useState<SyncFailure[]>([]);
+  const [storedSeqHistories, setStoredSeqHistories] = useState<Set<number>>(new Set());
+  const [targetStatuses, setTargetStatuses] = useState<Map<number, TargetSyncStatus>>(new Map());
   const [message, setMessage] = useState<string | null>(null);
   const [messageTone, setMessageTone] = useState<"info" | "warning" | "danger">("info");
   const [filter, setFilter] = useState("");
@@ -40,6 +44,7 @@ export function SyncPage() {
   }, [filter, targets]);
   const targetTree = useMemo(() => buildTargetTree(visibleTargets), [visibleTargets]);
   const visibleSeqHistories = useMemo(() => visibleTargets.map((target) => target.seqHistory), [visibleTargets]);
+  const failedSeqHistories = useMemo(() => new Set(failures.map((failure) => failure.seqHistory)), [failures]);
   const visibleSelectedCount = useMemo(
     () => visibleSeqHistories.filter((seqHistory) => selected.has(seqHistory)).length,
     [selected, visibleSeqHistories],
@@ -55,6 +60,7 @@ export function SyncPage() {
     void refresh();
     return window.kuRegulation.sync.onProgress((next) => {
       setProgress(next);
+      setTargetStatuses((previous) => applyProgressToTargetStatuses(previous, next));
       setProgressStartedAtMs((previous) => {
         if (next.status === "running" || next.status === "stopping") return previous ?? Date.now();
         if (next.status === "completed" || next.status === "failed" || next.status === "cancelled") return null;
@@ -76,12 +82,14 @@ export function SyncPage() {
     });
     setStats(unwrap(await window.kuRegulation.db.stats()));
     setFailures(unwrap(await window.kuRegulation.db.failures()));
+    setStoredSeqHistories(new Set(unwrap(await window.kuRegulation.db.storedSeqHistories())));
     setTargetCacheInfo(unwrap(await window.kuRegulation.sync.targetCacheInfo()));
   }
 
   async function refreshSyncStatus() {
     setStats(unwrap(await window.kuRegulation.db.stats()));
     setFailures(unwrap(await window.kuRegulation.db.failures()));
+    setStoredSeqHistories(new Set(unwrap(await window.kuRegulation.db.storedSeqHistories())));
   }
 
   async function refreshTargetList() {
@@ -109,9 +117,12 @@ export function SyncPage() {
   async function start(seqHistories?: number[]) {
     setMessage(null);
     setProgressStartedAtMs(Date.now());
+    const syncSeqHistories = seqHistories ?? targets.map((target) => target.seqHistory);
+    setTargetStatuses(new Map(syncSeqHistories.map((seqHistory) => [seqHistory, "pending" as const])));
     try {
       const result = unwrap(await window.kuRegulation.sync.start(seqHistories));
       setProgress(result);
+      setTargetStatuses((previous) => applyProgressToTargetStatuses(previous, result));
       await refresh();
     } catch (error) {
       setMessageTone("danger");
@@ -146,6 +157,10 @@ export function SyncPage() {
     setSelected(next);
   }
 
+  function selectVisibleByPredicate(predicate: (target: RegulationTarget) => boolean) {
+    setSelected(new Set(visibleTargets.filter(predicate).map((target) => target.seqHistory)));
+  }
+
   return (
     <div className="page-grid">
       <section className="panel">
@@ -174,6 +189,35 @@ export function SyncPage() {
           <button type="button" className="secondary" onClick={() => window.kuRegulation.sync.stop()}>
             <PauseCircle size={17} />
             동기화 중지
+          </button>
+        </div>
+        <div className="button-row selection-actions">
+          <button
+            type="button"
+            className="secondary"
+            disabled={visibleTargets.length === 0}
+            onClick={() => selectVisibleByPredicate((target) => !storedSeqHistories.has(target.seqHistory))}
+          >
+            저장되지 않은 규정 선택
+          </button>
+          <button
+            type="button"
+            className="secondary"
+            disabled={visibleTargets.length === 0}
+            onClick={() => selectVisibleByPredicate((target) => storedSeqHistories.has(target.seqHistory))}
+          >
+            저장된 규정 선택
+          </button>
+          <button
+            type="button"
+            className="secondary"
+            disabled={failures.length === 0}
+            onClick={() => selectVisibleByPredicate((target) => failedSeqHistories.has(target.seqHistory))}
+          >
+            실패한 규정 다시 선택
+          </button>
+          <button type="button" className="secondary" disabled={selected.size === 0} onClick={() => setSelected(new Set())}>
+            선택 초기화
           </button>
         </div>
         <div className="target-toolbar">
@@ -216,6 +260,9 @@ export function SyncPage() {
               key={folder.path.join("/")}
               folder={folder}
               selected={selected}
+              storedSeqHistories={storedSeqHistories}
+              failedSeqHistories={failedSeqHistories}
+              targetStatuses={targetStatuses}
               onSelectFolder={selectFolder}
               onTargetChecked={setTargetChecked}
               highlightTerms={extractSearchTerms(filter)}
@@ -251,12 +298,18 @@ export function SyncPage() {
 function TargetFolderNode({
   folder,
   selected,
+  storedSeqHistories,
+  failedSeqHistories,
+  targetStatuses,
   onSelectFolder,
   onTargetChecked,
   highlightTerms,
 }: {
   folder: TargetFolder;
   selected: Set<number>;
+  storedSeqHistories: Set<number>;
+  failedSeqHistories: Set<number>;
+  targetStatuses: Map<number, TargetSyncStatus>;
   onSelectFolder: (folder: TargetFolder) => void;
   onTargetChecked: (seqHistory: number, checked: boolean) => void;
   highlightTerms: string[];
@@ -291,27 +344,34 @@ function TargetFolderNode({
             key={child.path.join("/")}
             folder={child}
             selected={selected}
+            storedSeqHistories={storedSeqHistories}
+            failedSeqHistories={failedSeqHistories}
+            targetStatuses={targetStatuses}
             onSelectFolder={onSelectFolder}
             onTargetChecked={onTargetChecked}
             highlightTerms={highlightTerms}
           />
         ))}
-        {folder.targets.map((target) => (
-          <label key={target.seqHistory} className="target-item">
-            <input
-              type="checkbox"
-              checked={selected.has(target.seqHistory)}
-              onChange={(event) => onTargetChecked(target.seqHistory, event.currentTarget.checked)}
-            />
-            <span>
-              <HighlightedText text={target.regulationName} terms={highlightTerms} />
-            </span>
-            <span className="target-meta">
-              {target.seq && <code>SEQ {target.seq}</code>}
-              <code>SEQ_HISTORY {target.seqHistory}</code>
-            </span>
-          </label>
-        ))}
+        {folder.targets.map((target) => {
+          const status = getTargetSyncDisplayStatus(target.seqHistory, targetStatuses, storedSeqHistories, failedSeqHistories);
+          return (
+            <label key={target.seqHistory} className="target-item">
+              <input
+                type="checkbox"
+                checked={selected.has(target.seqHistory)}
+                onChange={(event) => onTargetChecked(target.seqHistory, event.currentTarget.checked)}
+              />
+              <span>
+                <HighlightedText text={target.regulationName} terms={highlightTerms} />
+              </span>
+              <span className="target-meta">
+                <span className={`target-sync-badge ${status.className}`}>{status.label}</span>
+                {target.seq && <code>SEQ {target.seq}</code>}
+                <code>SEQ_HISTORY {target.seqHistory}</code>
+              </span>
+            </label>
+          );
+        })}
       </div>
     </details>
   );
@@ -364,6 +424,41 @@ function collectFolderSeqHistories(folder: TargetFolder): number[] {
     ...folder.targets.map((target) => target.seqHistory),
     ...folder.folders.flatMap((child) => collectFolderSeqHistories(child)),
   ];
+}
+
+function applyProgressToTargetStatuses(
+  previous: Map<number, TargetSyncStatus>,
+  progress: SyncProgress,
+): Map<number, TargetSyncStatus> {
+  const next = new Map(previous);
+  const completed = new Set(progress.completedSeqHistories);
+  const failed = new Set(progress.failures.map((failure) => failure.seqHistory));
+  const isActive = progress.status === "running" || progress.status === "stopping";
+
+  for (const seqHistory of next.keys()) {
+    if (completed.has(seqHistory)) next.set(seqHistory, "completed");
+    else if (failed.has(seqHistory)) next.set(seqHistory, "failed");
+    else if (isActive && progress.currentSeqHistory === seqHistory) next.set(seqHistory, "running");
+    else next.set(seqHistory, "pending");
+  }
+
+  return next;
+}
+
+function getTargetSyncDisplayStatus(
+  seqHistory: number,
+  targetStatuses: Map<number, TargetSyncStatus>,
+  storedSeqHistories: Set<number>,
+  failedSeqHistories: Set<number>,
+): { label: string; className: string } {
+  const activeStatus = targetStatuses.get(seqHistory);
+  if (activeStatus === "running") return { label: "동기화 중", className: "running" };
+  if (activeStatus === "completed") return { label: "완료", className: "completed" };
+  if (activeStatus === "failed") return { label: "실패", className: "failed" };
+  if (activeStatus === "pending") return { label: "미완료", className: "pending" };
+  if (storedSeqHistories.has(seqHistory)) return { label: "완료", className: "completed" };
+  if (failedSeqHistories.has(seqHistory)) return { label: "실패", className: "failed" };
+  return { label: "미완료", className: "pending" };
 }
 
 function formatSyncStatus(status: SyncProgress["status"]): string {

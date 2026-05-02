@@ -78,34 +78,49 @@ export class RegulationSyncService {
     this.abortController = new AbortController();
     const startedAt = new Date().toISOString();
     const failures: SyncFailure[] = [];
+    const completedSeqHistories: number[] = [];
     let successCount = 0;
     const syncLogId = this.db.beginSync(targets.length);
 
-    const emit = (progress: Omit<SyncProgress, "totalCount" | "successCount" | "failedCount" | "failures">) => {
+    const emit = (
+      progress: Omit<SyncProgress, "totalCount" | "successCount" | "failedCount" | "failures" | "completedSeqHistories">,
+    ) => {
       onProgress({
         ...progress,
         totalCount: targets.length,
         successCount,
         failedCount: failures.length,
         failures: [...failures],
+        completedSeqHistories: [...completedSeqHistories],
       });
     };
 
-    emit({ status: "running", currentName: null, message: "동기화를 시작합니다." });
+    emit({ status: "running", currentSeqHistory: null, currentName: null, message: "동기화를 시작합니다." });
 
     try {
       for (const target of targets) {
         if (this.abortController.signal.aborted) {
-          emit({ status: "cancelled", currentName: null, message: "동기화가 중지되었습니다." });
+          emit({ status: "cancelled", currentSeqHistory: null, currentName: null, message: "동기화가 중지되었습니다." });
           break;
         }
 
-        emit({ status: "running", currentName: target.regulationName, message: `${target.regulationName} 수집 중` });
+        emit({
+          status: "running",
+          currentSeqHistory: target.seqHistory,
+          currentName: target.regulationName,
+          message: `${target.regulationName} 수집 중`,
+        });
 
         try {
           await this.syncOne(target);
           successCount += 1;
-          emit({ status: "running", currentName: target.regulationName, message: `${target.regulationName} 저장 완료` });
+          completedSeqHistories.push(target.seqHistory);
+          emit({
+            status: "running",
+            currentSeqHistory: target.seqHistory,
+            currentName: target.regulationName,
+            message: `${target.regulationName} 저장 완료`,
+          });
         } catch (error) {
           const failure = toSyncFailure(target, error);
           failures.push(failure);
@@ -114,7 +129,12 @@ export class RegulationSyncService {
             seqHistory: target.seqHistory,
             errorCode: failure.errorCode,
           });
-          emit({ status: "running", currentName: target.regulationName, message: `${target.regulationName} 실패` });
+          emit({
+            status: "running",
+            currentSeqHistory: target.seqHistory,
+            currentName: target.regulationName,
+            message: `${target.regulationName} 실패`,
+          });
         }
 
         await delay(DEFAULT_REQUEST_DELAY_MS, this.abortController.signal);
@@ -132,9 +152,11 @@ export class RegulationSyncService {
         totalCount: targets.length,
         successCount,
         failedCount: failures.length,
+        currentSeqHistory: null,
         currentName: null,
         message: cancelled ? "동기화가 중지되었습니다." : "동기화가 완료되었습니다.",
         failures,
+        completedSeqHistories,
       };
       onProgress(summary);
       return summary;

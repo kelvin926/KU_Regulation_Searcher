@@ -321,6 +321,18 @@ export class DatabaseService {
     return this.db.prepare("SELECT * FROM regulations ORDER BY regulation_name ASC").all() as RegulationRecord[];
   }
 
+  listStoredSeqHistories(): number[] {
+    const rows = this.db
+      .prepare(
+        `SELECT seq_history AS seqHistory
+         FROM regulations
+         WHERE seq_history IS NOT NULL
+         ORDER BY seq_history ASC`,
+      )
+      .all() as { seqHistory: number }[];
+    return rows.map((row) => row.seqHistory);
+  }
+
   clearDatabase(): void {
     const transaction = this.db.transaction(() => {
       this.db.prepare("DELETE FROM articles").run();

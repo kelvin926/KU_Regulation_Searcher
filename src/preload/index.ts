@@ -44,6 +44,7 @@ const api: KuRegulationApi = {
   db: {
     stats: (): Promise<ApiResult<DbStats>> => ipcRenderer.invoke("db:stats"),
     failures: (): Promise<ApiResult<SyncFailure[]>> => ipcRenderer.invoke("db:failures"),
+    storedSeqHistories: (): Promise<ApiResult<number[]>> => ipcRenderer.invoke("db:storedSeqHistories"),
     clear: (): Promise<ApiResult<DbStats>> => ipcRenderer.invoke("db:clear"),
   },
   settings: {
