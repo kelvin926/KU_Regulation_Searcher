@@ -1,7 +1,7 @@
 import { Bot, Search } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { ArticleRecord, GeneratedAnswer } from "../../shared/types";
-import { DEFAULT_RAG_ARTICLES } from "../../shared/constants";
+import { DEFAULT_RAG_ARTICLES, MAX_RAG_ARTICLES } from "../../shared/constants";
 import { ArticleCard } from "../components/ArticleCard";
 import { AnswerPanel } from "../components/AnswerPanel";
 import { CitationPanel } from "../components/CitationPanel";
@@ -18,8 +18,18 @@ export function AskPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [messageTone, setMessageTone] = useState<"info" | "warning" | "danger">("warning");
   const [busyAction, setBusyAction] = useState<"searching" | "generating" | null>(null);
+  const [candidateLimits, setCandidateLimits] = useState({
+    searchCandidateLimit: DEFAULT_RAG_ARTICLES,
+    maxCandidateLimit: MAX_RAG_ARTICLES,
+  });
   const busy = busyAction !== null;
   const selectedArticles = useMemo(() => articles.filter((article) => selectedIds.has(article.id)), [articles, selectedIds]);
+
+  useEffect(() => {
+    void window.kuRegulation.settings.get().then((result) => {
+      if (result.ok && result.data) setCandidateLimits(result.data.rag);
+    });
+  }, []);
 
   async function findArticles() {
     if (busy || question.trim().length === 0) return;
@@ -27,7 +37,7 @@ export function AskPage() {
     setMessage(null);
     setAnswer(null);
     try {
-      const result = unwrap(await window.kuRegulation.ask.search({ query: question, limit: DEFAULT_RAG_ARTICLES }));
+      const result = unwrap(await window.kuRegulation.ask.search({ query: question, limit: candidateLimits.searchCandidateLimit }));
       setArticles(result.articles);
       setSelectedIds(new Set(result.articles.map((article) => article.id)));
       setKeywords(result.expandedKeywords);
@@ -51,7 +61,11 @@ export function AskPage() {
     setBusyAction("generating");
     setAnswer(null);
     setMessageTone("info");
-    setMessage("AI 답변 생성 중입니다.");
+    setMessage(
+      selectedIds.size > candidateLimits.maxCandidateLimit
+        ? `AI 답변 생성 중입니다. 선택한 ${selectedIds.size}개 중 최대 ${candidateLimits.maxCandidateLimit}개 조항만 전달합니다.`
+        : "AI 답변 생성 중입니다.",
+    );
     try {
       setAnswer(
         unwrap(
@@ -100,6 +114,14 @@ export function AskPage() {
             </button>
           </div>
           {keywords.length > 0 && <div className="keyword-row">{keywords.map((keyword) => <code key={keyword}>{keyword}</code>)}</div>}
+          <div className="meta-line">
+            검색 후보 {candidateLimits.searchCandidateLimit}개 · AI 최대 근거 {candidateLimits.maxCandidateLimit}개
+          </div>
+          {selectedIds.size > candidateLimits.maxCandidateLimit && (
+            <WarningBox tone="info">
+              선택된 근거 조항이 {selectedIds.size}개입니다. AI 답변에는 최대 {candidateLimits.maxCandidateLimit}개까지만 전달됩니다.
+            </WarningBox>
+          )}
           {message && <WarningBox tone={messageTone}>{message}</WarningBox>}
         </section>
         <section className="panel">

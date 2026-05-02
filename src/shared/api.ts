@@ -11,6 +11,7 @@ import type {
   DbStats,
   GenerateAnswerRequest,
   GeneratedAnswer,
+  RagCandidateSettings,
   RegulationFile,
   RegulationTargetCacheInfo,
   RegulationTarget,
@@ -47,6 +48,7 @@ export interface KuRegulationApi {
     saveApiKey: (apiKey: string) => Promise<ApiResult<AiSettings>>;
     deleteApiKey: () => Promise<ApiResult<AiSettings>>;
     testConnection: (apiKey?: string) => Promise<ApiResult<boolean>>;
+    setRagSettings: (settings: Partial<RagCandidateSettings>) => Promise<ApiResult<AiSettings>>;
     usage: () => Promise<ApiResult<AiUsageStats>>;
     resetUsage: () => Promise<ApiResult<AiSettings>>;
   };

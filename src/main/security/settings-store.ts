@@ -1,11 +1,12 @@
 import fs from "node:fs";
-import { DEFAULT_MODEL_ID } from "../../shared/constants";
-import type { AiModelId, AiTokenUsage, AiUsageStats } from "../../shared/types";
+import { DEFAULT_MODEL_ID, DEFAULT_RAG_ARTICLES, HARD_MAX_RAG_ARTICLES, MAX_RAG_ARTICLES, MIN_RAG_ARTICLES } from "../../shared/constants";
+import type { AiModelId, AiTokenUsage, AiUsageStats, RagCandidateSettings } from "../../shared/types";
 import type { AppPaths } from "../app-paths";
 
 interface SettingsFile {
   modelId?: AiModelId;
   usage?: Partial<AiUsageStats>;
+  rag?: Partial<RagCandidateSettings>;
 }
 
 export class SettingsStore {
@@ -18,6 +19,17 @@ export class SettingsStore {
 
   setModelId(modelId: AiModelId): void {
     this.write({ ...this.read(), modelId });
+  }
+
+  getRagSettings(): RagCandidateSettings {
+    return normalizeRagSettings(this.read().rag);
+  }
+
+  setRagSettings(settings: Partial<RagCandidateSettings>): RagCandidateSettings {
+    const current = this.read();
+    const next = normalizeRagSettings({ ...current.rag, ...settings });
+    this.write({ ...current, rag: next });
+    return next;
   }
 
   getUsage(): AiUsageStats {
@@ -75,6 +87,13 @@ function normalizeUsage(usage?: Partial<AiUsageStats>): AiUsageStats {
   };
 }
 
+function normalizeRagSettings(settings?: Partial<RagCandidateSettings>): RagCandidateSettings {
+  return {
+    searchCandidateLimit: clampInteger(settings?.searchCandidateLimit, DEFAULT_RAG_ARTICLES),
+    maxCandidateLimit: clampInteger(settings?.maxCandidateLimit, MAX_RAG_ARTICLES),
+  };
+}
+
 function emptyUsage(): AiUsageStats {
   return {
     requestCount: 0,
@@ -88,4 +107,10 @@ function emptyUsage(): AiUsageStats {
 
 function toNumber(value: unknown): number {
   return Number.isFinite(Number(value)) ? Number(value) : 0;
+}
+
+function clampInteger(value: unknown, fallback: number): number {
+  const number = Math.round(Number(value));
+  if (!Number.isFinite(number)) return fallback;
+  return Math.min(Math.max(number, MIN_RAG_ARTICLES), HARD_MAX_RAG_ARTICLES);
 }

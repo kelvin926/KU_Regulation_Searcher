@@ -83,6 +83,12 @@ export interface AiSettings {
   modelId: AiModelId;
   hasApiKey: boolean;
   usage: AiUsageStats;
+  rag: RagCandidateSettings;
+}
+
+export interface RagCandidateSettings {
+  searchCandidateLimit: number;
+  maxCandidateLimit: number;
 }
 
 export interface AiUsageStats {

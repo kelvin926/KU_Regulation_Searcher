@@ -12,6 +12,7 @@ import type {
   GenerateAnswerRequest,
   GeneratedAnswer,
   ArticleRecord,
+  RagCandidateSettings,
   RegulationFile,
   RegulationTargetCacheInfo,
   RegulationTarget,
@@ -56,6 +57,8 @@ const api: KuRegulationApi = {
     deleteApiKey: (): Promise<ApiResult<AiSettings>> => ipcRenderer.invoke("settings:deleteApiKey"),
     testConnection: (apiKey?: string): Promise<ApiResult<boolean>> =>
       ipcRenderer.invoke("settings:testConnection", apiKey),
+    setRagSettings: (settings: Partial<RagCandidateSettings>): Promise<ApiResult<AiSettings>> =>
+      ipcRenderer.invoke("settings:setRagSettings", settings),
     usage: (): Promise<ApiResult<AiUsageStats>> => ipcRenderer.invoke("settings:usage"),
     resetUsage: (): Promise<ApiResult<AiSettings>> => ipcRenderer.invoke("settings:resetUsage"),
   },

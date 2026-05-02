@@ -1,7 +1,7 @@
 import { KeyRound, PlugZap, RotateCcw, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
-import type { AiModelId, AiSettings } from "../../shared/types";
-import { DEFAULT_MODEL_ID } from "../../shared/constants";
+import type { AiModelId, AiSettings, RagCandidateSettings } from "../../shared/types";
+import { DEFAULT_MODEL_ID, DEFAULT_RAG_ARTICLES, HARD_MAX_RAG_ARTICLES, MAX_RAG_ARTICLES, MIN_RAG_ARTICLES } from "../../shared/constants";
 import { ModelSelector } from "../components/ModelSelector";
 import { WarningBox } from "../components/WarningBox";
 import { getErrorMessage, unwrap } from "../lib/api";
@@ -18,17 +18,36 @@ export function AiSettingsPage() {
       totalTokenCount: 0,
       lastUsedAt: null,
     },
+    rag: {
+      searchCandidateLimit: DEFAULT_RAG_ARTICLES,
+      maxCandidateLimit: MAX_RAG_ARTICLES,
+    },
+  });
+  const [candidateDraft, setCandidateDraft] = useState<RagCandidateSettings>({
+    searchCandidateLimit: DEFAULT_RAG_ARTICLES,
+    maxCandidateLimit: MAX_RAG_ARTICLES,
   });
   const [apiKey, setApiKey] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    void window.kuRegulation.settings.get().then((result) => setSettings(unwrap(result)));
+    void window.kuRegulation.settings.get().then((result) => {
+      const next = unwrap(result);
+      setSettings(next);
+      setCandidateDraft(next.rag);
+    });
   }, []);
 
   async function updateModel(modelId: AiModelId) {
     setSettings(unwrap(await window.kuRegulation.settings.setModel(modelId)));
+  }
+
+  async function saveCandidateSettings() {
+    const next = unwrap(await window.kuRegulation.settings.setRagSettings(candidateDraft));
+    setSettings(next);
+    setCandidateDraft(next.rag);
+    setMessage("검색 후보 수와 AI 최대 근거 조항 수를 저장했습니다.");
   }
 
   async function run(action: () => Promise<void>) {
@@ -106,6 +125,71 @@ export function AiSettingsPage() {
           <h2>모델 선택</h2>
         </div>
         <ModelSelector value={settings.modelId} onChange={updateModel} />
+        <div className="section-heading sub-heading">
+          <h2>규정 질의 후보 수</h2>
+        </div>
+        <div className="candidate-settings-grid">
+          <label className="field">
+            <span>검색 후보 수</span>
+            <input
+              type="number"
+              min={MIN_RAG_ARTICLES}
+              max={HARD_MAX_RAG_ARTICLES}
+              value={candidateDraft.searchCandidateLimit}
+              onChange={(event) =>
+                setCandidateDraft((previous) => ({
+                  ...previous,
+                  searchCandidateLimit: Number(event.currentTarget.value),
+                }))
+              }
+            />
+          </label>
+          <label className="field">
+            <span>AI 최대 근거 조항 수</span>
+            <input
+              type="number"
+              min={MIN_RAG_ARTICLES}
+              max={HARD_MAX_RAG_ARTICLES}
+              value={candidateDraft.maxCandidateLimit}
+              onChange={(event) =>
+                setCandidateDraft((previous) => ({
+                  ...previous,
+                  maxCandidateLimit: Number(event.currentTarget.value),
+                }))
+              }
+            />
+          </label>
+        </div>
+        <div className="button-row">
+          <button disabled={busy} type="button" onClick={() => run(saveCandidateSettings)}>
+            후보 수 저장
+          </button>
+          <button
+            disabled={busy}
+            type="button"
+            className="secondary"
+            onClick={() =>
+              run(async () => {
+                const defaults = {
+                  searchCandidateLimit: DEFAULT_RAG_ARTICLES,
+                  maxCandidateLimit: MAX_RAG_ARTICLES,
+                };
+                const next = unwrap(await window.kuRegulation.settings.setRagSettings(defaults));
+                setSettings(next);
+                setCandidateDraft(next.rag);
+                setMessage("후보 수를 기본값으로 되돌렸습니다.");
+              })
+            }
+          >
+            기본값으로 되돌리기
+          </button>
+        </div>
+        <div className="meta-line">
+          저장된 값: 검색 후보 {settings.rag.searchCandidateLimit}개 · AI 최대 근거 {settings.rag.maxCandidateLimit}개
+        </div>
+        <WarningBox tone="info">
+          후보 수를 늘리면 더 많은 조항을 검토할 수 있지만 답변 생성이 느려지고 Gemini 토큰 사용량이 늘어날 수 있습니다.
+        </WarningBox>
         <div className="section-heading sub-heading">
           <h2>AI 사용량</h2>
         </div>

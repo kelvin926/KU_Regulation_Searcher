@@ -1,6 +1,6 @@
 import { app, BrowserWindow, ipcMain } from "electron";
 import fs from "node:fs";
-import { APP_NAME, AI_MODELS, DEFAULT_RAG_ARTICLES } from "../shared/constants";
+import { APP_NAME, AI_MODELS } from "../shared/constants";
 import { AppError } from "../shared/errors";
 import type {
   AiModelId,
@@ -136,30 +136,24 @@ function registerIpcHandlers(): void {
     }),
   );
 
-  ipcMain.handle("settings:get", async () =>
-    wrap(() => ({
-      modelId: settingsStore.getModelId(),
-      hasApiKey: apiKeyStore.hasApiKey(),
-      usage: settingsStore.getUsage(),
-    })),
-  );
+  ipcMain.handle("settings:get", async () => wrap(() => getAiSettings()));
   ipcMain.handle("settings:setModel", async (_event, modelId: AiModelId) =>
     wrap(() => {
       assertModelId(modelId);
       settingsStore.setModelId(modelId);
-      return { modelId, hasApiKey: apiKeyStore.hasApiKey(), usage: settingsStore.getUsage() };
+      return getAiSettings();
     }),
   );
   ipcMain.handle("settings:saveApiKey", async (_event, apiKey: string) =>
     wrap(() => {
       apiKeyStore.save(apiKey);
-      return { modelId: settingsStore.getModelId(), hasApiKey: true, usage: settingsStore.getUsage() };
+      return getAiSettings();
     }),
   );
   ipcMain.handle("settings:deleteApiKey", async () =>
     wrap(() => {
       apiKeyStore.delete();
-      return { modelId: settingsStore.getModelId(), hasApiKey: false, usage: settingsStore.getUsage() };
+      return getAiSettings();
     }),
   );
   ipcMain.handle("settings:testConnection", async (_event, apiKey?: string) =>
@@ -170,24 +164,26 @@ function registerIpcHandlers(): void {
       return true;
     }),
   );
+  ipcMain.handle("settings:setRagSettings", async (_event, settings: unknown) =>
+    wrap(() => {
+      settingsStore.setRagSettings(isRecord(settings) ? settings : {});
+      return getAiSettings();
+    }),
+  );
   ipcMain.handle("settings:usage", async () => wrap(() => settingsStore.getUsage()));
   ipcMain.handle("settings:resetUsage", async () =>
     wrap(() => {
       settingsStore.resetUsage();
-      return {
-        modelId: settingsStore.getModelId(),
-        hasApiKey: apiKeyStore.hasApiKey(),
-        usage: settingsStore.getUsage(),
-      };
+      return getAiSettings();
     }),
   );
 
   ipcMain.handle("ask:search", async (_event, request: SearchArticlesRequest) =>
-    wrap(() => searchService.searchForQuestion(request.query, request.limit ?? DEFAULT_RAG_ARTICLES)),
+    wrap(() => searchService.searchForQuestion(request.query, request.limit ?? settingsStore.getRagSettings().searchCandidateLimit)),
   );
   ipcMain.handle("ask:generate", async (_event, request: GenerateAnswerRequest) =>
     wrap(async () => {
-      const articles = searchService.getCandidateArticles(request.articleIds);
+      const articles = searchService.getCandidateArticles(request.articleIds, settingsStore.getRagSettings().maxCandidateLimit);
       const answer = await geminiClient.generateAnswer({
         apiKey: apiKeyStore.load(),
         modelId: settingsStore.getModelId(),
@@ -252,6 +248,19 @@ function selectTargets(seqHistories?: number[]): RegulationTarget[] {
     throw new AppError("SYNC_FAILED", "동기화할 규정이 선택되지 않았습니다.");
   }
   return targets;
+}
+
+function getAiSettings() {
+  return {
+    modelId: settingsStore.getModelId(),
+    hasApiKey: apiKeyStore.hasApiKey(),
+    usage: settingsStore.getUsage(),
+    rag: settingsStore.getRagSettings(),
+  };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
 function assertModelId(modelId: AiModelId): void {

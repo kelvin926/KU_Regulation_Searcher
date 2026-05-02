@@ -1,6 +1,6 @@
 import type { AskSearchResult, ArticleRecord, SearchPageRequest } from "../../shared/types";
 import { AppError } from "../../shared/errors";
-import { MAX_RAG_ARTICLES } from "../../shared/constants";
+import { HARD_MAX_RAG_ARTICLES, MIN_RAG_ARTICLES } from "../../shared/constants";
 import type { DatabaseService } from "../db/database";
 import { normalizeArticleNo } from "../crawler/regulation-parser";
 import { dedupeAndLimitArticles } from "./article-ranker";
@@ -59,11 +59,17 @@ export class SearchService {
     });
   }
 
-  getCandidateArticles(articleIds: number[]): ArticleRecord[] {
-    const articles = this.db.getArticlesByIds(articleIds.slice(0, MAX_RAG_ARTICLES));
+  getCandidateArticles(articleIds: number[], maxCandidateLimit: number): ArticleRecord[] {
+    const limit = clampCandidateLimit(maxCandidateLimit);
+    const articles = this.db.getArticlesByIds(articleIds.slice(0, limit));
     if (articles.length === 0) {
       throw new AppError("NO_RELEVANT_ARTICLES");
     }
     return articles;
   }
+}
+
+function clampCandidateLimit(value: number): number {
+  if (!Number.isFinite(value)) return MIN_RAG_ARTICLES;
+  return Math.min(Math.max(Math.round(value), MIN_RAG_ARTICLES), HARD_MAX_RAG_ARTICLES);
 }
