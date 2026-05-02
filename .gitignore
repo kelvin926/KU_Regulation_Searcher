@@ -9,9 +9,9 @@ coverage/
 *.sqlite-wal
 .env
 .env.*
-auth/
-data/
-logs/
+/auth/
+/data/
+/logs/
 *.storageState.json
 .DS_Store
 npm-debug.log*
