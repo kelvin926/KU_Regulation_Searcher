@@ -15,11 +15,12 @@ export function parseAndValidateAnswer(rawText: string, candidateArticles: Artic
   const parsed = parseAnswerJson(rawText);
   const candidateIds = new Set(candidateArticles.map((article) => article.id));
   const candidateNos = new Set(candidateArticles.map((article) => article.article_no));
-  const unknownUsedArticleIds = parsed.used_article_ids.filter((id) => !candidateIds.has(id));
   const citedArticleNos = extractArticleNos(parsed.answer);
+  const usedArticleIds = inferMissingUsedArticleIds(parsed.used_article_ids, citedArticleNos, candidateArticles);
+  const unknownUsedArticleIds = usedArticleIds.filter((id) => !candidateIds.has(id));
   const unknownArticleNos = citedArticleNos.filter((articleNo) => !candidateNos.has(articleNo));
 
-  if (parsed.used_article_ids.length === 0 && parsed.missing_evidence === false) {
+  if (usedArticleIds.length === 0 && parsed.missing_evidence === false) {
     throw new AppError("MODEL_RESPONSE_INVALID");
   }
 
@@ -37,10 +38,26 @@ export function parseAndValidateAnswer(rawText: string, candidateArticles: Artic
 
   return {
     ...parsed,
+    used_article_ids: usedArticleIds,
     warnings: [...parsed.warnings, ...(verification.warningMessage ? [verification.warningMessage] : [])],
     verification,
     rawText,
   };
+}
+
+function inferMissingUsedArticleIds(
+  usedArticleIds: number[],
+  citedArticleNos: string[],
+  candidateArticles: ArticleRecord[],
+): number[] {
+  if (usedArticleIds.length > 0 || citedArticleNos.length === 0) return usedArticleIds;
+  const ids = new Set<number>();
+  for (const articleNo of citedArticleNos) {
+    for (const article of candidateArticles) {
+      if (article.article_no === articleNo) ids.add(article.id);
+    }
+  }
+  return Array.from(ids);
 }
 
 function parseAnswerJson(rawText: string): z.infer<typeof AnswerSchema> {

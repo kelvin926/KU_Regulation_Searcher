@@ -49,4 +49,20 @@ describe("answer validator", () => {
     expect(answer.verification.valid).toBe(false);
     expect(answer.verification.unknownArticleNos).toEqual(["제9조"]);
   });
+
+  it("infers missing used IDs from cited candidate article numbers", () => {
+    const answer = parseAndValidateAnswer(
+      JSON.stringify({
+        answer: "제공된 고려대 규정 조항 기준 제5조에 따릅니다.",
+        used_article_ids: [],
+        confidence: "medium",
+        missing_evidence: false,
+        warnings: [],
+      }),
+      candidates,
+    );
+
+    expect(answer.used_article_ids).toEqual([1]);
+    expect(answer.verification.valid).toBe(true);
+  });
 });

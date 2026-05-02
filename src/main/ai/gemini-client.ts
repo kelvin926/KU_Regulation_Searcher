@@ -1,4 +1,4 @@
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI, Type } from "@google/genai";
 import type { ArticleRecord, GeneratedAnswer, AiModelId } from "../../shared/types";
 import { AppError } from "../../shared/errors";
 import { buildPolicyAnswerPrompt } from "./prompt-builder";
@@ -50,6 +50,7 @@ export class GeminiClient {
         contents: prompt,
         config: {
           responseMimeType,
+          ...(responseMimeType === "application/json" ? { responseSchema: ANSWER_RESPONSE_SCHEMA } : {}),
           temperature: 0.1,
           maxOutputTokens: 2048,
         },
@@ -63,6 +64,28 @@ export class GeminiClient {
     }
   }
 }
+
+const ANSWER_RESPONSE_SCHEMA = {
+  type: Type.OBJECT,
+  required: ["answer", "used_article_ids", "confidence", "missing_evidence", "warnings"],
+  properties: {
+    answer: { type: Type.STRING },
+    used_article_ids: {
+      type: Type.ARRAY,
+      items: { type: Type.INTEGER },
+    },
+    confidence: {
+      type: Type.STRING,
+      format: "enum",
+      enum: ["high", "medium", "low"],
+    },
+    missing_evidence: { type: Type.BOOLEAN },
+    warnings: {
+      type: Type.ARRAY,
+      items: { type: Type.STRING },
+    },
+  },
+};
 
 function mapGeminiError(error: unknown): AppError {
   const message = error instanceof Error ? error.message : String(error);

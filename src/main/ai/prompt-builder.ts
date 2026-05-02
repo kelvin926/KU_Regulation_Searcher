@@ -22,6 +22,8 @@ export function buildPolicyAnswerPrompt({
 8. 규정 간 충돌이나 예외가 있으면 "추가 확인 필요"라고 표시하라.
 9. 답변은 한국어 존댓말로 작성한다.
 10. 가능하면 간결하게 답하되, 근거 조항은 생략하지 않는다.
+11. missing_evidence가 false이면 used_article_ids는 반드시 1개 이상이어야 한다.
+12. answer 본문에는 사용한 조문번호(예: 제32조, 제33조의2)를 함께 적어라.
 
 출력은 반드시 JSON 객체 하나만 반환하라. Markdown 코드블록을 쓰지 마라.
 형식:
