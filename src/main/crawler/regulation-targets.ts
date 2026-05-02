@@ -15,6 +15,13 @@ interface TargetPointer {
   seqHistory: number;
 }
 
+interface ParseTargetsOptions {
+  category?: string;
+  categoryPath?: string[];
+  sortPathPrefix?: number[];
+  orderOffset?: number;
+}
+
 interface TreeNode {
   folder?: string | number;
   hseq?: string | number;
@@ -36,6 +43,8 @@ export async function fetchRegulationTargetsFromSite(): Promise<RegulationTarget
     parent: CURRENT_REGULATION_ROOT,
     treeDepth: 1,
     category: "규정",
+    categoryPath: ["규정"],
+    sortPathPrefix: [],
     targets,
     visitedFolders,
   });
@@ -43,9 +52,14 @@ export async function fetchRegulationTargetsFromSite(): Promise<RegulationTarget
   return sortTargets(Array.from(targets.values()));
 }
 
-export function parseRegulationTargetsFromHtml(html: string, category?: string): RegulationTarget[] {
+export function parseRegulationTargetsFromHtml(
+  html: string,
+  categoryOrOptions?: string | ParseTargetsOptions,
+): RegulationTarget[] {
+  const options = normalizeParseOptions(categoryOrOptions);
   const $ = cheerio.load(html);
   const targets = new Map<number, RegulationTarget>();
+  let order = options.orderOffset ?? 0;
 
   $("[href], [onclick]").each((_, element) => {
     const $element = $(element);
@@ -58,15 +72,19 @@ export function parseRegulationTargetsFromHtml(html: string, category?: string):
 
     for (const pointer of pointers) {
       if (!targets.has(pointer.seqHistory)) {
-        targets.set(pointer.seqHistory, toTarget(name, pointer, category));
+        targets.set(pointer.seqHistory, toTarget(name, pointer, options, order));
       }
     }
+    order += 1;
   });
 
   for (const pointer of extractPointers(html)) {
     if (!targets.has(pointer.seqHistory)) {
       const name = extractNameNearPointer(html, pointer);
-      if (name) targets.set(pointer.seqHistory, toTarget(name, pointer, category));
+      if (name) {
+        targets.set(pointer.seqHistory, toTarget(name, pointer, options, order));
+        order += 1;
+      }
     }
   }
 
@@ -78,6 +96,8 @@ async function collectTargetsFromTree({
   parent,
   treeDepth,
   category,
+  categoryPath,
+  sortPathPrefix,
   targets,
   visitedFolders,
 }: {
@@ -85,6 +105,8 @@ async function collectTargetsFromTree({
   parent: number;
   treeDepth: number;
   category: string;
+  categoryPath: string[];
+  sortPathPrefix: number[];
   targets: Map<number, RegulationTarget>;
   visitedFolders: Set<string>;
 }): Promise<void> {
@@ -101,12 +123,17 @@ async function collectTargetsFromTree({
       visitedFolders.add(folderKey);
 
       const nextCategory = name ? `${category} / ${name}` : category;
-      await addTargetsFromFolderList(key, lawGroup, nextCategory, targets);
+      const nodeSort = toNumber(node.sortnum) ?? key;
+      const nextCategoryPath = name ? [...categoryPath, name] : categoryPath;
+      const nextSortPath = [...sortPathPrefix, nodeSort];
+      await addTargetsFromFolderList(key, lawGroup, nextCategory, nextCategoryPath, nextSortPath, targets);
       await collectTargetsFromTree({
         lawGroup,
         parent: key,
         treeDepth: toNumber(node.treedepth) ? Number(node.treedepth) + 1 : treeDepth + 1,
         category: nextCategory,
+        categoryPath: nextCategoryPath,
+        sortPathPrefix: nextSortPath,
         targets,
         visitedFolders,
       });
@@ -121,6 +148,8 @@ async function collectTargetsFromTree({
         seqHistory,
         sourceUrl: `${KOREA_POLICY_CONTENT_URL}?SEQ=${key}&SEQ_HISTORY=${seqHistory}`,
         category,
+        categoryPath,
+        sortPath: [...sortPathPrefix, toNumber(node.sortnum) ?? key],
       });
     }
   }
@@ -130,6 +159,8 @@ async function addTargetsFromFolderList(
   folderSeq: number,
   lawGroup: number,
   category: string,
+  categoryPath: string[],
+  sortPathPrefix: number[],
   targets: Map<number, RegulationTarget>,
 ): Promise<void> {
   for (let page = 1; page <= 100; page += 1) {
@@ -143,7 +174,12 @@ async function addTargetsFromFolderList(
       },
     });
 
-    const parsedTargets = parseRegulationTargetsFromHtml(result.text, category);
+    const parsedTargets = parseRegulationTargetsFromHtml(result.text, {
+      category,
+      categoryPath,
+      sortPathPrefix,
+      orderOffset: (page - 1) * 1000,
+    });
     if (parsedTargets.length === 0) break;
 
     for (const target of parsedTargets) {
@@ -258,7 +294,7 @@ function normalizeNodeTitle(value: string | undefined): string | null {
   return value.replace(/\u00a0/g, " ").replace(/\s+/g, " ").trim() || null;
 }
 
-function toTarget(name: string, pointer: TargetPointer, category?: string): RegulationTarget {
+function toTarget(name: string, pointer: TargetPointer, options: ParseTargetsOptions, order: number): RegulationTarget {
   const query = pointer.seq
     ? `SEQ=${pointer.seq}&SEQ_HISTORY=${pointer.seqHistory}`
     : `SEQ_HISTORY=${pointer.seqHistory}`;
@@ -268,7 +304,9 @@ function toTarget(name: string, pointer: TargetPointer, category?: string): Regu
     seq: pointer.seq,
     seqHistory: pointer.seqHistory,
     sourceUrl: `${KOREA_POLICY_CONTENT_URL}?${query}`,
-    category,
+    category: options.category,
+    categoryPath: options.categoryPath,
+    sortPath: [...(options.sortPathPrefix ?? []), order],
   };
 }
 
@@ -289,8 +327,49 @@ function toNumber(value: unknown): number | null {
 
 function sortTargets(targets: RegulationTarget[]): RegulationTarget[] {
   return [...targets].sort((a, b) => {
+    const bySortPath = compareNumberPath(a.sortPath, b.sortPath);
+    if (bySortPath !== 0) return bySortPath;
     const byCategory = (a.category ?? "").localeCompare(b.category ?? "", "ko-KR");
     if (byCategory !== 0) return byCategory;
     return a.regulationName.localeCompare(b.regulationName, "ko-KR");
   });
+}
+
+function normalizeParseOptions(categoryOrOptions?: string | ParseTargetsOptions): ParseTargetsOptions {
+  if (typeof categoryOrOptions === "string") {
+    return {
+      category: categoryOrOptions,
+      categoryPath: splitCategoryPath(categoryOrOptions),
+      sortPathPrefix: [],
+      orderOffset: 0,
+    };
+  }
+
+  const category = categoryOrOptions?.category;
+  return {
+    category,
+    categoryPath: categoryOrOptions?.categoryPath ?? splitCategoryPath(category),
+    sortPathPrefix: categoryOrOptions?.sortPathPrefix ?? [],
+    orderOffset: categoryOrOptions?.orderOffset ?? 0,
+  };
+}
+
+function splitCategoryPath(category?: string): string[] | undefined {
+  return category
+    ?.split("/")
+    .map((part) => part.trim())
+    .filter(Boolean);
+}
+
+function compareNumberPath(a?: readonly number[], b?: readonly number[]): number {
+  if (!a?.length && !b?.length) return 0;
+  if (!a?.length) return 1;
+  if (!b?.length) return -1;
+  const length = Math.max(a.length, b.length);
+  for (let index = 0; index < length; index += 1) {
+    const left = a[index] ?? -1;
+    const right = b[index] ?? -1;
+    if (left !== right) return left - right;
+  }
+  return 0;
 }

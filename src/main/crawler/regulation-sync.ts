@@ -224,19 +224,59 @@ function normalizeTarget(value: unknown): RegulationTarget | null {
   if (typeof record.regulationName !== "string" || record.regulationName.trim().length === 0) return null;
   if (!Number.isSafeInteger(record.seqHistory) || Number(record.seqHistory) <= 0) return null;
   if (typeof record.sourceUrl !== "string" || record.sourceUrl.trim().length === 0) return null;
+  const sortPath = normalizeNumberArray(record.sortPath);
+  if (!sortPath) return null;
   return {
     regulationName: record.regulationName,
     seqHistory: Number(record.seqHistory),
     sourceUrl: record.sourceUrl,
     seq: Number.isSafeInteger(record.seq) ? Number(record.seq) : undefined,
     category: typeof record.category === "string" ? record.category : undefined,
+    categoryPath: normalizeStringArray(record.categoryPath) ?? splitCategoryPath(record.category),
+    sortPath,
   };
 }
 
 function sortTargets(targets: RegulationTarget[]): RegulationTarget[] {
   return [...targets].sort((a, b) => {
+    const bySortPath = compareNumberPath(a.sortPath, b.sortPath);
+    if (bySortPath !== 0) return bySortPath;
     const byCategory = (a.category ?? "").localeCompare(b.category ?? "", "ko-KR");
     if (byCategory !== 0) return byCategory;
     return a.regulationName.localeCompare(b.regulationName, "ko-KR");
   });
+}
+
+function normalizeStringArray(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const result = value.filter((item): item is string => typeof item === "string" && item.trim().length > 0);
+  return result.length > 0 ? result : undefined;
+}
+
+function normalizeNumberArray(value: unknown): number[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const result = value
+    .map((item) => Number(item))
+    .filter((item) => Number.isFinite(item));
+  return result.length > 0 ? result : undefined;
+}
+
+function splitCategoryPath(category?: string): string[] | undefined {
+  return category
+    ?.split("/")
+    .map((part) => part.trim())
+    .filter(Boolean);
+}
+
+function compareNumberPath(a?: readonly number[], b?: readonly number[]): number {
+  if (!a?.length && !b?.length) return 0;
+  if (!a?.length) return 1;
+  if (!b?.length) return -1;
+  const length = Math.max(a.length, b.length);
+  for (let index = 0; index < length; index += 1) {
+    const left = a[index] ?? -1;
+    const right = b[index] ?? -1;
+    if (left !== right) return left - right;
+  }
+  return 0;
 }

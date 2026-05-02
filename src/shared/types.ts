@@ -9,6 +9,8 @@ export interface RegulationTarget {
   sourceUrl: string;
   seq?: number;
   category?: string;
+  categoryPath?: readonly string[];
+  sortPath?: readonly number[];
 }
 
 export interface RegulationRecord {

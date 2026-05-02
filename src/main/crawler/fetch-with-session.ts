@@ -22,7 +22,7 @@ export async function fetchWithSession(url: string, options: SessionFetchOptions
       redirect: "follow",
       headers: {
         Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        "User-Agent": "KU-Regulation-Assistant/0.2.0",
+        "User-Agent": "KU-Regulation-Assistant/0.3.0",
         ...(options.headers ?? {}),
         ...(cookieHeader ? { Cookie: cookieHeader } : {}),
       },

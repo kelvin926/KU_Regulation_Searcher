@@ -4,6 +4,13 @@ import type { DbStats, RegulationTarget, SyncFailure, SyncProgress } from "../..
 import { getErrorMessage, unwrap } from "../lib/api";
 import { WarningBox } from "../components/WarningBox";
 
+interface TargetFolder {
+  name: string;
+  path: string[];
+  folders: TargetFolder[];
+  targets: RegulationTarget[];
+}
+
 export function SyncPage() {
   const [targets, setTargets] = useState<RegulationTarget[]>([]);
   const [selected, setSelected] = useState<Set<number>>(new Set());
@@ -11,6 +18,7 @@ export function SyncPage() {
   const [stats, setStats] = useState<DbStats | null>(null);
   const [failures, setFailures] = useState<SyncFailure[]>([]);
   const [message, setMessage] = useState<string | null>(null);
+  const [messageTone, setMessageTone] = useState<"info" | "warning" | "danger">("info");
   const [filter, setFilter] = useState("");
   const [loadingTargets, setLoadingTargets] = useState(false);
   const visibleTargets = useMemo(() => {
@@ -20,9 +28,11 @@ export function SyncPage() {
       (target) =>
         target.regulationName.toLowerCase().includes(query) ||
         target.category?.toLowerCase().includes(query) ||
+        target.categoryPath?.some((part) => part.toLowerCase().includes(query)) ||
         String(target.seqHistory).includes(query),
     );
   }, [filter, targets]);
+  const targetTree = useMemo(() => buildTargetTree(visibleTargets), [visibleTargets]);
 
   useEffect(() => {
     void refresh();
@@ -45,7 +55,8 @@ export function SyncPage() {
 
   async function refreshTargetList() {
     setLoadingTargets(true);
-    setMessage(null);
+    setMessageTone("info");
+    setMessage("규정 목록 새로고침 중입니다.");
     try {
       const loadedTargets = unwrap(await window.kuRegulation.sync.refreshTargets());
       setTargets(loadedTargets);
@@ -53,8 +64,10 @@ export function SyncPage() {
         const available = new Set(loadedTargets.map((target) => target.seqHistory));
         return new Set(Array.from(previous).filter((seqHistory) => available.has(seqHistory)));
       });
-      setMessage(`${loadedTargets.length}개 규정 목록을 불러왔습니다. 필요한 규정만 선택해서 동기화하세요.`);
+      setMessageTone("info");
+      setMessage(`규정 목록 새로고침 완료: ${loadedTargets.length}개를 불러왔습니다. 필요한 규정만 선택해서 동기화하세요.`);
     } catch (error) {
+      setMessageTone("danger");
       setMessage(getErrorMessage(error));
     } finally {
       setLoadingTargets(false);
@@ -68,8 +81,24 @@ export function SyncPage() {
       setProgress(result);
       await refresh();
     } catch (error) {
+      setMessageTone("danger");
       setMessage(getErrorMessage(error));
     }
+  }
+
+  function setTargetChecked(seqHistory: number, checked: boolean) {
+    const next = new Set(selected);
+    if (checked) next.add(seqHistory);
+    else next.delete(seqHistory);
+    setSelected(next);
+  }
+
+  function selectFolder(folder: TargetFolder) {
+    const next = new Set(selected);
+    for (const seqHistory of collectFolderSeqHistories(folder)) {
+      next.add(seqHistory);
+    }
+    setSelected(next);
   }
 
   return (
@@ -116,26 +145,15 @@ export function SyncPage() {
             전체 {targets.length}개 · 표시 {visibleTargets.length}개 · 선택 {selected.size}개
           </span>
         </div>
-        <div className="target-list">
-          {visibleTargets.map((target) => (
-            <label key={target.seqHistory} className="target-item">
-              <input
-                type="checkbox"
-                checked={selected.has(target.seqHistory)}
-                onChange={(event) => {
-                  const next = new Set(selected);
-                  if (event.currentTarget.checked) next.add(target.seqHistory);
-                  else next.delete(target.seqHistory);
-                  setSelected(next);
-                }}
-              />
-              <span>{target.regulationName}</span>
-              <span className="target-meta">
-                {target.category && <span>{target.category}</span>}
-                {target.seq && <code>SEQ {target.seq}</code>}
-                <code>SEQ_HISTORY {target.seqHistory}</code>
-              </span>
-            </label>
+        <div className="target-tree">
+          {targetTree.map((folder) => (
+            <TargetFolderNode
+              key={folder.path.join("/")}
+              folder={folder}
+              selected={selected}
+              onSelectFolder={selectFolder}
+              onTargetChecked={setTargetChecked}
+            />
           ))}
           {visibleTargets.length === 0 && <div className="empty-panel">표시할 규정이 없습니다.</div>}
         </div>
@@ -148,7 +166,7 @@ export function SyncPage() {
             <div>{progress.message}</div>
           </div>
         )}
-        {message && <WarningBox>{message}</WarningBox>}
+        {message && <WarningBox tone={messageTone}>{message}</WarningBox>}
       </section>
       <section className="panel">
         <div className="section-heading">
@@ -172,6 +190,117 @@ export function SyncPage() {
       </section>
     </div>
   );
+}
+
+function TargetFolderNode({
+  folder,
+  selected,
+  onSelectFolder,
+  onTargetChecked,
+}: {
+  folder: TargetFolder;
+  selected: Set<number>;
+  onSelectFolder: (folder: TargetFolder) => void;
+  onTargetChecked: (seqHistory: number, checked: boolean) => void;
+}) {
+  const totalCount = collectFolderSeqHistories(folder).length;
+  const selectedCount = collectFolderSeqHistories(folder).filter((seqHistory) => selected.has(seqHistory)).length;
+
+  return (
+    <details className="target-folder" open>
+      <summary>
+        <span className="target-folder-name">{folder.name}</span>
+        <span className="target-folder-count">
+          {selectedCount}/{totalCount}
+        </span>
+        <button
+          type="button"
+          className="folder-action"
+          onClick={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            onSelectFolder(folder);
+          }}
+        >
+          전체 선택
+        </button>
+      </summary>
+      <div className="target-folder-body">
+        {folder.folders.map((child) => (
+          <TargetFolderNode
+            key={child.path.join("/")}
+            folder={child}
+            selected={selected}
+            onSelectFolder={onSelectFolder}
+            onTargetChecked={onTargetChecked}
+          />
+        ))}
+        {folder.targets.map((target) => (
+          <label key={target.seqHistory} className="target-item">
+            <input
+              type="checkbox"
+              checked={selected.has(target.seqHistory)}
+              onChange={(event) => onTargetChecked(target.seqHistory, event.currentTarget.checked)}
+            />
+            <span>{target.regulationName}</span>
+            <span className="target-meta">
+              {target.seq && <code>SEQ {target.seq}</code>}
+              <code>SEQ_HISTORY {target.seqHistory}</code>
+            </span>
+          </label>
+        ))}
+      </div>
+    </details>
+  );
+}
+
+function buildTargetTree(targets: RegulationTarget[]): TargetFolder[] {
+  const rootFolders: TargetFolder[] = [];
+
+  for (const target of targets) {
+    const path = normalizeCategoryPath(target);
+    let folders = rootFolders;
+    let current: TargetFolder | null = null;
+
+    for (let index = 0; index < path.length; index += 1) {
+      const name = path[index];
+      let folder = folders.find((item) => item.name === name);
+      if (!folder) {
+        folder = {
+          name,
+          path: path.slice(0, index + 1),
+          folders: [],
+          targets: [],
+        };
+        folders.push(folder);
+      }
+      current = folder;
+      folders = folder.folders;
+    }
+
+    if (current) current.targets.push(target);
+  }
+
+  return rootFolders;
+}
+
+function normalizeCategoryPath(target: RegulationTarget): string[] {
+  if (target.categoryPath?.length) return [...target.categoryPath];
+  if (target.category) {
+    const parts = target.category
+      .split("/")
+      .map((part) => part.trim())
+      .filter(Boolean);
+    if (parts.length > 0) return parts;
+  }
+  return ["미분류"];
+}
+
+function collectFolderSeqHistories(folder: TargetFolder): number[] {
+  return [
+    ...folder.targets.map((target) => target.seqHistory),
+    ...folder.folders.flatMap((child) => collectFolderSeqHistories(child)),
+  ];
 }
 
 function Stat({ label, value }: { label: string; value: number }) {

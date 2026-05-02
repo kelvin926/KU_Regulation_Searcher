@@ -8,7 +8,7 @@ export function CitationPanel({ articles }: { articles: ArticleRecord[] }) {
   return (
     <section>
       <div className="section-heading">
-        <h2>근거 조항</h2>
+        <h2>선택된 근거 조항</h2>
       </div>
       <div className="article-list">
         {articles.map((article) => (

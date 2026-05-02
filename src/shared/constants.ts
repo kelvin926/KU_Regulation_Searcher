@@ -30,18 +30,27 @@ export const MVP_REGULATION_TARGETS = [
     seq: 15,
     seqHistory: 2502,
     sourceUrl: `${KOREA_POLICY_CONTENT_URL}?SEQ=15&SEQ_HISTORY=2502`,
+    category: "규정 / 2편1장(학칙)",
+    categoryPath: ["규정", "2편1장(학칙)"],
+    sortPath: [2, 1],
   },
   {
     regulationName: "2-1-2 학사운영 규정",
     seq: 17,
     seqHistory: 2482,
     sourceUrl: `${KOREA_POLICY_CONTENT_URL}?SEQ=17&SEQ_HISTORY=2482`,
+    category: "규정 / 2편1장(학칙)",
+    categoryPath: ["규정", "2편1장(학칙)"],
+    sortPath: [2, 2],
   },
   {
     regulationName: "2-1-50 대학원학칙",
     seq: 20,
     seqHistory: 2447,
     sourceUrl: `${KOREA_POLICY_CONTENT_URL}?SEQ=20&SEQ_HISTORY=2447`,
+    category: "규정 / 2편1장(학칙)",
+    categoryPath: ["규정", "2편1장(학칙)"],
+    sortPath: [2, 50],
   },
 ] as const;
 

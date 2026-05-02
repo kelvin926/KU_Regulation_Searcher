@@ -30,22 +30,29 @@ export function SearchPage() {
         <div className="section-heading">
           <h1>규정 검색</h1>
         </div>
-        <label className="field">
-          <span>규정명</span>
-          <input value={regulationName} onChange={(event) => setRegulationName(event.currentTarget.value)} />
-        </label>
-        <label className="field">
-          <span>조문 본문</span>
-          <input value={bodyQuery} onChange={(event) => setBodyQuery(event.currentTarget.value)} />
-        </label>
-        <label className="field">
-          <span>조문번호</span>
-          <input value={articleNo} onChange={(event) => setArticleNo(event.currentTarget.value)} placeholder="제76조의2" />
-        </label>
-        <button type="button" onClick={search}>
-          <Search size={17} />
-          검색
-        </button>
+        <form
+          onSubmit={(event) => {
+            event.preventDefault();
+            void search();
+          }}
+        >
+          <label className="field">
+            <span>규정명</span>
+            <input value={regulationName} onChange={(event) => setRegulationName(event.currentTarget.value)} />
+          </label>
+          <label className="field">
+            <span>조문 본문</span>
+            <input value={bodyQuery} onChange={(event) => setBodyQuery(event.currentTarget.value)} />
+          </label>
+          <label className="field">
+            <span>조문번호</span>
+            <input value={articleNo} onChange={(event) => setArticleNo(event.currentTarget.value)} placeholder="제76조의2" />
+          </label>
+          <button type="submit">
+            <Search size={17} />
+            검색
+          </button>
+        </form>
         {message && <WarningBox>{message}</WarningBox>}
         <div className="result-list">
           {results.map((article) => (

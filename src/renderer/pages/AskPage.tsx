@@ -15,11 +15,14 @@ export function AskPage() {
   const [keywords, setKeywords] = useState<string[]>([]);
   const [answer, setAnswer] = useState<GeneratedAnswer | null>(null);
   const [message, setMessage] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [messageTone, setMessageTone] = useState<"info" | "warning" | "danger">("warning");
+  const [busyAction, setBusyAction] = useState<"searching" | "generating" | null>(null);
+  const busy = busyAction !== null;
   const selectedArticles = useMemo(() => articles.filter((article) => selectedIds.has(article.id)), [articles, selectedIds]);
 
   async function findArticles() {
-    setBusy(true);
+    if (busy || question.trim().length === 0) return;
+    setBusyAction("searching");
     setMessage(null);
     setAnswer(null);
     try {
@@ -27,18 +30,27 @@ export function AskPage() {
       setArticles(result.articles);
       setSelectedIds(new Set(result.articles.map((article) => article.id)));
       setKeywords(result.expandedKeywords);
-      if (result.errorCode === "LOCAL_DB_EMPTY") setMessage("[LOCAL_DB_EMPTY] 먼저 규정을 동기화하세요.");
-      else if (result.errorCode === "NO_RELEVANT_ARTICLES") setMessage("[근거 없음] 관련 조항을 찾지 못했습니다.");
+      if (result.errorCode === "LOCAL_DB_EMPTY") {
+        setMessageTone("warning");
+        setMessage("[LOCAL_DB_EMPTY] 먼저 규정을 동기화하세요.");
+      } else if (result.errorCode === "NO_RELEVANT_ARTICLES") {
+        setMessageTone("warning");
+        setMessage("[근거 없음] 관련 조항을 찾지 못했습니다.");
+      }
     } catch (error) {
+      setMessageTone("danger");
       setMessage(getErrorMessage(error));
     } finally {
-      setBusy(false);
+      setBusyAction(null);
     }
   }
 
   async function generateAnswer() {
-    setBusy(true);
-    setMessage(null);
+    if (busy || selectedIds.size === 0) return;
+    setBusyAction("generating");
+    setAnswer(null);
+    setMessageTone("info");
+    setMessage("AI 답변 생성 중입니다.");
     try {
       setAnswer(
         unwrap(
@@ -48,10 +60,12 @@ export function AskPage() {
           }),
         ),
       );
+      setMessage(null);
     } catch (error) {
+      setMessageTone("danger");
       setMessage(getErrorMessage(error));
     } finally {
-      setBusy(false);
+      setBusyAction(null);
     }
   }
 
@@ -66,6 +80,11 @@ export function AskPage() {
             className="question-box"
             value={question}
             onChange={(event) => setQuestion(event.currentTarget.value)}
+            onKeyDown={(event) => {
+              if (event.nativeEvent.isComposing || event.key !== "Enter" || event.shiftKey) return;
+              event.preventDefault();
+              void findArticles();
+            }}
             placeholder="예: 일반휴학은 몇 학기까지 가능한가요?"
           />
           <div className="button-row">
@@ -75,14 +94,14 @@ export function AskPage() {
             </button>
             <button type="button" disabled={busy || selectedIds.size === 0} onClick={generateAnswer}>
               <Bot size={17} />
-              답변 생성
+              {busyAction === "generating" ? "생성 중..." : "AI 답변 생성"}
             </button>
           </div>
           {keywords.length > 0 && <div className="keyword-row">{keywords.map((keyword) => <code key={keyword}>{keyword}</code>)}</div>}
-          {message && <WarningBox>{message}</WarningBox>}
+          {message && <WarningBox tone={messageTone}>{message}</WarningBox>}
         </section>
         <section className="panel">
-          <AnswerPanel answer={answer} />
+          <AnswerPanel answer={answer} articles={selectedArticles} />
         </section>
       </div>
       <div className="ask-column">

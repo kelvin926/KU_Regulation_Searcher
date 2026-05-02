@@ -14,6 +14,7 @@ describe("parseRegulationTargetsFromHtml", () => {
     const targets = parseRegulationTargetsFromHtml(html, "규정");
 
     expect(targets).toHaveLength(3);
+    expect(targets.map((target) => target.regulationName)).toEqual(["고려대학교 학칙", "학사운영 규정", "대학원학칙"]);
     expect(targets).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -22,6 +23,8 @@ describe("parseRegulationTargetsFromHtml", () => {
           seqHistory: 2446,
           sourceUrl: expect.stringContaining("SEQ=15&SEQ_HISTORY=2446"),
           category: "규정",
+          categoryPath: ["규정"],
+          sortPath: [0],
         }),
         expect.objectContaining({
           regulationName: "학사운영 규정",

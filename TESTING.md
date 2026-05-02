@@ -10,8 +10,8 @@ Mac-specific behavior is not the release criterion for this MVP.
 - OS: Windows 11
 - Repo: `https://github.com/kelvin926/KU_Regulation_Searcher`
 - Branch: `main`
-- Installer: `release\KU-Regulation-Setup-0.2.0.exe`
-- Installer size: 104,493,003 bytes, about 99.7 MiB
+- Installer: `release\KU-Regulation-Setup-0.3.0.exe`
+- Installer size: 104,522,603 bytes, about 99.7 MiB
 - AppData path: `%APPDATA%\KU Regulation Assistant\`
 
 ## Command validation
@@ -41,7 +41,7 @@ Mac-specific behavior is not the release criterion for this MVP.
 - Installed app launch without Node.js runtime: passed
 - App relaunch: passed
 - Update from the previous local install without uninstall: passed
-- AppData persisted after update: `cookies.enc`, `gemini-api-key.enc`, and `settings.json` remained present
+- AppData persisted after update: `cookies.enc`, `gemini-api-key.enc`, `settings.json`, and `regulation-targets.json` remained present
 - Uninstall via generated uninstaller: passed
 - Reinstall: passed
 - SmartScreen: not shown during local silent validation; the installer is unsigned, so a SmartScreen warning is still possible on other PCs.
@@ -108,13 +108,15 @@ Article parsing spot checks:
 
 ## Regulation list refresh validation
 
-Version `0.2.0` adds full current-regulation list refresh and selected sync.
+Version `0.3.0` keeps the full current-regulation list refresh and selected sync, and renders targets in the official tree order.
 
 - Stored login cookies loaded through Electron `safeStorage`: passed
 - Official AJAX tree endpoint used: `/lmxsrv/law/lawTreeNodes.do`
 - Official list endpoint used: `/lmxsrv/law/lawListManager_areaC.do`
 - Folder list pagination: verified; list pages contain 10 regulations per page and are fetched until no new target appears
 - Refreshed target count: 1,277 current regulation targets in the logged-in session
+- Target order: follows the official regulation-system folder/list order through stored `sortPath`; first items begin with `1-0-1 학교법인 고려중앙학원 정관`, then `2-1-1 고려대학교 학칙`
+- Target grouping: rendered as nested folders from stored `categoryPath`
 - Core targets found in refreshed list:
   - `2-1-1 고려대학교 학칙`, `SEQ=15`, `SEQ_HISTORY=2502`
   - `2-1-2 학사운영 규정`, `SEQ=17`, `SEQ_HISTORY=2482`
@@ -128,6 +130,12 @@ Version `0.2.0` adds full current-regulation list refresh and selected sync.
 - Left column order: question panel, generated answer panel.
 - Right column order: searched evidence candidates, displayed citation panel.
 - The generated answer no longer drops below the right-side evidence/citation panel height.
+- Pressing Enter in the question box runs local article search; Shift+Enter keeps a newline.
+- The answer button label is `AI 답변 생성`.
+- During answer generation, the UI shows `AI 답변 생성 중입니다.` and API/search errors are displayed in the panel.
+- The citation heading is `선택된 근거 조항`.
+- Articles used by the AI answer are highlighted below the answer body.
+- Pressing Enter in the regulation search inputs runs search immediately.
 
 ## Natural-language RAG validation
 
