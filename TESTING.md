@@ -11,7 +11,7 @@ Mac-specific behavior is not the release criterion for this MVP.
 - Repo: `https://github.com/kelvin926/KU_Regulation_Searcher`
 - Branch: `main`
 - Installer: `release\KU-Regulation-Setup-0.1.0.exe`
-- Installer size: 104,423,094 bytes, about 99.6 MiB
+- Installer size: 104,424,528 bytes, about 99.6 MiB
 - AppData path: `%APPDATA%\KU Regulation Assistant\`
 
 ## Command validation
