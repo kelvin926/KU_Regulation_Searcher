@@ -22,8 +22,8 @@ Branch: `main`
 | Check | Result |
 | --- | --- |
 | Installer file | `release\KU-Regulation-Setup-0.8.2.exe` |
-| Installer size | 179,045,489 bytes, about 170.8 MiB |
-| SHA-256 | `F3395EE3005C834101CDAD548B8F46D740B155FE2F38F5D350B899F4CEC6FE81` |
+| Installer size | 179,045,486 bytes, about 170.8 MiB |
+| SHA-256 | `6A3E7D5FE66AC15498FC72573A5C05D6CEFFEB0924319B101E9C6B0AFB584526` |
 | Install type | Per-user NSIS install |
 | Admin permission | Not required in silent install validation |
 | Install/update success | Passed, exit code 0 |
