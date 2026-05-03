@@ -41,7 +41,7 @@ export function AskPage() {
     try {
       const result = unwrap(await window.kuRegulation.ask.search({ query: question, limit: candidateLimits.searchCandidateLimit }));
       setArticles(result.articles);
-      setSelectedIds(new Set(result.articles.filter(isDefaultAiEvidence).map((article) => article.id)));
+      setSelectedIds(new Set(pickDefaultAiEvidence(result.articles, candidateLimits.maxCandidateLimit).map((article) => article.id)));
       setKeywords(result.expandedKeywords);
       if (result.errorCode === "LOCAL_DB_EMPTY") {
         setMessageTone("warning");
@@ -171,4 +171,11 @@ export function AskPage() {
 function isDefaultAiEvidence(article: ArticleRecord): boolean {
   const group = article.relevance?.group;
   return group !== "out_of_scope" && group !== "low_relevance";
+}
+
+function pickDefaultAiEvidence(articles: ArticleRecord[], maxCount: number): ArticleRecord[] {
+  const primary = articles.filter((article) => article.relevance?.group === "primary");
+  const related = articles.filter((article) => article.relevance?.group === "related");
+  if (primary.length > 0) return primary.slice(0, maxCount);
+  return related.slice(0, maxCount);
 }

@@ -4,6 +4,16 @@ import { rankArticlesForQuestion } from "./article-ranker";
 import { expandQuery } from "./query-expander";
 
 describe("search quality reranking", () => {
+  it("normalizes undergraduate military leave questions", () => {
+    const expanded = expandQuery("미래모빌리티학과 학부생의 군입대는 어떻게 진행해야 하나요?");
+
+    expect(expanded.queryIntent.scope).toBe("학부");
+    expect(expanded.keywords).toEqual(expect.arrayContaining(["학부", "군입대", "군입대휴학", "휴학"]));
+    expect(expanded.keywords).toContain("미래모빌리티학과");
+    expect(expanded.requiredTerms).not.toContain("미래모빌리티학과");
+    expect(expanded.removedStopWords).toEqual(expect.arrayContaining(["학부생", "진행"]));
+  });
+
   it("keeps procedure questions focused on the procedure topic", () => {
     const result = rankArticlesForQuestion(
       [
@@ -20,6 +30,50 @@ describe("search quality reranking", () => {
     expect(result.articles.slice(0, 2).map((article) => article.id)).toEqual([1, 2]);
     expect(result.articles.find((article) => article.id === 3)?.relevance?.group).toBe("low_relevance");
     expect(result.articles.find((article) => article.id === 4)?.relevance?.group).toBe("low_relevance");
+  });
+
+  it("prioritizes 학사운영 규정 for undergraduate military leave procedures", () => {
+    const result = rankArticlesForQuestion(
+      [
+        createArticle(
+          1,
+          "학사운영 규정",
+          "제29조",
+          "군입대 휴학",
+          "군입대를 하려는 학생은 입영일 전에 입영통지서 또는 소집통지서를 첨부하여 군입대 휴학원을 제출하여야 한다.",
+        ),
+        createArticle(
+          2,
+          "보건과학대학 바이오의공학부 신임교원 책임수업시간 감면 내규",
+          "제4조",
+          "감면 신청",
+          "신임교원은 매 학기 소정의 기간에 서류를 학부장에게 제출한다.",
+        ),
+        createArticle(
+          3,
+          "일반 Tutorial 운영 지침",
+          "제6조",
+          "신청 및 승인 절차",
+          "Tutorial은 매 학기 지정된 기간에 신청하여야 하며 신청서류를 제출한다.",
+        ),
+        createArticle(
+          4,
+          "학사운영 규정",
+          "제32조",
+          "군전역 후의 복학",
+          "군입대 휴학생은 전역일로부터 1년 이내에 군전역 복학원서와 전역증 사본을 제출한다.",
+        ),
+      ],
+      "미래모빌리티학과 학부생의 군입대는 어떻게 진행해야 하나요?",
+      expandQuery("미래모빌리티학과 학부생의 군입대는 어떻게 진행해야 하나요?"),
+      4,
+    );
+
+    expect(result.articles[0].id).toBe(1);
+    expect(result.articles[0].relevance?.group).toBe("primary");
+    expect(result.articles.find((article) => article.id === 2)?.relevance?.group).toBe("out_of_scope");
+    expect(result.articles.find((article) => article.id === 3)?.relevance?.group).toBe("low_relevance");
+    expect(result.articles.find((article) => article.id === 4)?.relevance?.group).not.toBe("primary");
   });
 
   it("prioritizes scoped regulation-name questions over broad topic matches", () => {
@@ -72,6 +126,24 @@ describe("search quality reranking", () => {
     const regulationNames = result.articles.map((article) => article.regulation_name);
     expect(regulationNames.filter((name) => name === "A 장학금 지급 내규")).toHaveLength(2);
     expect(new Set(regulationNames).size).toBeGreaterThan(1);
+  });
+
+  it("keeps broad leave-duration questions focused on high-authority rules first", () => {
+    const result = rankArticlesForQuestion(
+      [
+        createArticle(1, "학사운영 규정", "제23조", "휴학의 신청·허가 및 기간", "휴학은 학기 또는 1년 단위로 하며 휴학기간은 통산 4년을 초과할 수 없다."),
+        createArticle(2, "대학원학칙 일반대학원 시행세칙", "제17조", "휴학기간", "휴학연한은 석사과정 2년, 박사과정 및 석·박사통합과정 3년으로 한다."),
+        createArticle(3, "대학원학칙 창업경영대학원 시행세칙", "제8조", "휴학기간", "휴학은 학기 또는 1년 단위로 할 수 있으며 통산 휴학기간은 4학기로 한다."),
+        createArticle(4, "법학전문대학원 운영 규정", "제11조", "휴학의 신청, 휴학기간", "석사과정 학생의 휴학기간은 통산 2년을 넘을 수 없다."),
+      ],
+      "일반휴학은 얼마나 가능한가요?",
+      expandQuery("일반휴학은 얼마나 가능한가요?"),
+      4,
+    );
+
+    expect(result.articles.slice(0, 2).map((article) => article.id)).toEqual(expect.arrayContaining([1, 2]));
+    expect(result.articles.find((article) => article.id === 3)?.relevance?.group).not.toBe("primary");
+    expect(result.articles.find((article) => article.id === 4)?.relevance?.group).not.toBe("primary");
   });
 });
 

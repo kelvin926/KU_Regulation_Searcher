@@ -48,6 +48,11 @@ const TOPIC_TERMS = [
   "학위논문",
   "청구논문",
   "휴학",
+  "군입대",
+  "군입대휴학",
+  "군복무",
+  "병역",
+  "입영",
   "복학",
   "재입학",
   "졸업",
@@ -107,7 +112,7 @@ function detectIntent(compactQuery: string, articleNos: string[], intentWords: s
   if (/(금액|얼마|액수|수업료|등록금|장학금액|지급액)/u.test(compactQuery)) return "amount";
   if (/(정의|뜻|무엇|무슨의미|용어)/u.test(compactQuery)) return "definition";
   if (/(가능한가|가능한가요|할수있|되나요|대상|자격|요건|조건|해당)/u.test(compactQuery)) return "eligibility";
-  if (/(방법|절차|신청|제출|어떻게|알려줘|알려주세요|안내|설명|문의|확인)/u.test(compactQuery)) {
+  if (/(방법|절차|신청|제출|진행|어떻게|알려줘|알려주세요|안내|설명|문의|확인)/u.test(compactQuery)) {
     return "procedure";
   }
   if (intentWords.some((word) => /^(규정|세칙|내규|학칙)$/u.test(word))) return "regulation_lookup";
@@ -121,7 +126,7 @@ function detectScope(compactQuery: string): QueryScope {
   if (compactQuery.includes("전문대학원")) return "전문대학원";
   if (compactQuery.includes("특수대학원")) return "특수대학원";
   if (compactQuery.includes("세종캠퍼스") || compactQuery.includes("세종")) return "세종캠퍼스";
-  if (compactQuery.includes("학부")) return "학부";
+  if (compactQuery.includes("학부생") || compactQuery.includes("학부")) return "학부";
   if (compactQuery.includes("조교")) return "조교";
   if (compactQuery.includes("교원")) return "교원";
   if (compactQuery.includes("직원")) return "직원";
@@ -138,6 +143,11 @@ function detectTopics(compactQuery: string): string[] {
     topics.add("학위청구논문");
     topics.add("심사");
   }
+  if (/(군입대|군복무|군휴학|입대휴학|군입대휴학|병역|입영|소집)/u.test(compactQuery)) {
+    topics.add("군입대");
+    topics.add("군입대휴학");
+    topics.add("휴학");
+  }
   return Array.from(topics);
 }
 
@@ -150,6 +160,7 @@ function detectIntentWords(compactQuery: string): string[] {
     "안내",
     "설명",
     "절차",
+    "진행",
     "관련",
     "내용",
     "규정",
@@ -171,7 +182,14 @@ function detectProcedureHints(compactQuery: string, topics: string[]): string[] 
   const hints = new Set<string>(PROCEDURE_HINTS);
   if (topics.includes("복학")) hints.add("복학원");
   if (topics.includes("휴학")) hints.add("휴학원");
-  if (compactQuery.includes("군")) hints.add("증명서");
+  if (compactQuery.includes("군") || topics.includes("군입대")) {
+    hints.add("증명서");
+    hints.add("입영통지서");
+    hints.add("소집통지서");
+    hints.add("군입대휴학원");
+    hints.add("입영");
+    hints.add("소집");
+  }
   return Array.from(hints);
 }
 

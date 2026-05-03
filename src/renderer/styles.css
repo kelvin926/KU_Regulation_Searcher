@@ -742,7 +742,7 @@ progress {
 }
 
 .segmented-control button {
-  min-height: 94px;
+  min-height: 148px;
   align-items: flex-start;
   flex-direction: column;
   background: #f7f8fa;
@@ -759,6 +759,16 @@ progress {
 .segmented-control span {
   color: #667085;
   line-height: 1.4;
+}
+
+.segmented-control .model-detail {
+  color: #445063;
+  font-size: 12px;
+}
+
+.segmented-control .model-detail b {
+  color: var(--ku-crimson-dark);
+  margin-right: 4px;
 }
 
 .current-model {

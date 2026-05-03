@@ -7,7 +7,7 @@ const SYNONYM_GROUPS = [
   ["졸업논문", "졸업논문심사"],
   ["조건", "요건", "자격", "제출자격"],
   ["휴학", "일반휴학"],
-  ["군휴학", "입대휴학", "군입대휴학"],
+  ["군입대", "군휴학", "입대휴학", "군입대휴학", "군복무", "병역", "입영", "입영통지서"],
   ["질병휴학", "질병으로인한휴학"],
   ["복학", "복학신청"],
   ["재입학", "재입학신청"],
@@ -60,6 +60,18 @@ const STOP_WORDS = new Set([
   "가능한가",
   "가능",
   "해줘",
+  "진행",
+  "진행해야",
+  "해야",
+  "하는",
+  "하려면",
+  "하려면요",
+  "신청하는",
+  "알려",
+  "답변",
+  "정리",
+  "요약",
+  "궁금",
   "까지",
   "일반",
   "방법",
@@ -78,6 +90,8 @@ const STOP_WORDS = new Set([
   "문의",
   "확인",
   "학생",
+  "학부생",
+  "학부생의",
   "빌릴",
   "고려대",
   "고려대학교",
@@ -109,7 +123,7 @@ export function expandQuery(input: string): ExpandedQuery {
 
   if (scopeTerm) {
     addSearchKeyword(keywords, scopeTerm);
-    requiredTerms.add(scopeTerm);
+    if (scopeTerm !== "학부") requiredTerms.add(scopeTerm);
   }
   for (const topic of queryIntent.topics) {
     addSearchKeyword(keywords, topic);
@@ -193,7 +207,8 @@ function normalizeToken(token: string): string {
 }
 
 function stripKoreanParticle(token: string): string {
-  return token.replace(/(은|는|이|가|을|를|와|과|도|만|에|에서|으로|로|에게|께|부터|까지)$/u, "");
+  if (/학과$/u.test(token)) return token;
+  return token.replace(/(은|는|이|가|을|를|와|과|의|도|만|에|에서|으로|로|에게|께|부터|까지)$/u, "");
 }
 
 function stripVerbEnding(token: string): string {
@@ -204,7 +219,8 @@ function stripVerbEnding(token: string): string {
 
 function isRequiredTerm(token: string): boolean {
   if (STOP_WORDS.has(token)) return false;
-  if (/^(신청|제출|원서|복학원|휴학원|소정기일|승인|접수기간|기간|서류)$/u.test(token)) return false;
+  if (/(학과|전공|학부)$/u.test(token) && token !== "학부") return false;
+  if (/^(일반휴학|신청|제출|원서|복학원|휴학원|소정기일|승인|접수기간|기간|서류)$/u.test(token)) return false;
   return true;
 }
 

@@ -22,6 +22,12 @@ export function ModelSelector({
           >
             <strong>{model.label}</strong>
             <span>{model.description}</span>
+            <span className="model-detail">
+              <b>추천</b> {model.bestFor}
+            </span>
+            <span className="model-detail">
+              <b>주의</b> {model.tradeoff}
+            </span>
           </button>
         ))}
       </div>

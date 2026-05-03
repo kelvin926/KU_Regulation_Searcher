@@ -41,6 +41,8 @@ const HIGH_AUTHORITY_REGULATIONS = [
   "일반대학원장학금지급세칙",
 ] as const;
 
+const UNDERGRADUATE_AUTHORITY_REGULATIONS = ["고려대학교학칙", "학사운영규정"] as const;
+
 const CORE_REGULATION_LOOKUP_TITLES = /^(목적|적용범위|지급대상|지급대상등|종류|일반대학원장학금|준용)$/u;
 const GENERIC_TITLES = /^(목적|정의|용어의정의|부칙)$/u;
 const DELETED_BODY = /삭제\s*<|^삭제$/u;
@@ -170,6 +172,27 @@ function scoreByIntent(article: ArticleRecord, context: RankingContext): number 
 
   if (context.queryIntent.intent === "procedure") {
     const topicTerms = context.queryIntent.topics.map(compact);
+    const isMilitaryLeaveQuestion =
+      topicTerms.includes("군입대") || /(군입대|군복무|군휴학|입대휴학|입영|소집|병역)/u.test(context.queryCompact);
+
+    if (context.queryIntent.scope === "unknown") {
+      if (HIGH_AUTHORITY_REGULATIONS.some((name) => regulationName.includes(name))) score += 60;
+      if (isSpecificAcademicUnitRule(regulationName)) score -= 70;
+    }
+
+    if (isMilitaryLeaveQuestion) {
+      if (regulationName.includes("학사운영규정")) score += 120;
+      if (title.includes("군입대휴학") || title.includes("군입대")) score += 140;
+      if (body.includes("입영통지서") || body.includes("소집통지서")) score += 70;
+      if (body.includes("군입대휴학원")) score += 45;
+      if (!context.queryCompact.includes("복학") && title.includes("복학")) score -= 500;
+      if (!/(시험|불응시|중간고사|기말고사)/u.test(context.queryCompact) && title.includes("불응시")) score -= 500;
+      if (!/(군입대|군복무|군휴학|입대휴학|입영|소집|병역)/u.test(`${title} ${body}`)) score -= 120;
+      if (/(신임교원|책임수업시간|장학금|tutorial|대관|fellowship|연구실배정|입학)/iu.test(`${regulationName} ${title}`)) {
+        score -= 110;
+      }
+    }
+
     for (const hint of context.queryIntent.procedureHints.map(compact)) {
       if (title.includes(hint)) score += 40;
       if (body.includes(hint)) score += 20;
@@ -177,6 +200,10 @@ function scoreByIntent(article: ArticleRecord, context: RankingContext): number 
     for (const topic of topicTerms) {
       if (title.includes(topic)) score += 52;
       if (body.includes(topic)) score += 14;
+    }
+    if (topicTerms.includes("복학")) {
+      if (title.includes("복학의신청")) score += 90;
+      if (!/(군|전역|병역)/u.test(context.queryCompact) && title.includes("군전역")) score -= 80;
     }
     if (topicTerms.length > 0 && title.includes("신청") && !topicTerms.some((topic) => title.includes(topic))) {
       score -= 80;
@@ -189,6 +216,9 @@ function scoreByIntent(article: ArticleRecord, context: RankingContext): number 
   if (context.queryIntent.intent === "duration") {
     if (/기간|연한|통산|학기|초과|넘지/u.test(title)) score += 65;
     if (/기간|연한|통산|학기|초과|넘지/u.test(body)) score += 30;
+    if (regulationName.includes("학사운영규정") && title.includes("휴학의신청") && body.includes("통산")) {
+      score += 120;
+    }
     if (context.queryCompact.includes("일반휴학")) {
       if (title.includes("일반휴학") || body.includes("일반휴학")) score += 45;
       if (!context.queryCompact.includes("창업") && (regulationName.includes("창업휴학") || title.includes("창업휴학"))) {
@@ -197,6 +227,14 @@ function scoreByIntent(article: ArticleRecord, context: RankingContext): number 
       if (!context.queryCompact.includes("창업") && body.includes("창업휴학") && !body.includes("일반휴학")) score -= 80;
     }
     if (title.includes("목적") || title.includes("제출서류")) score -= 25;
+
+    if (
+      context.queryIntent.scope === "unknown" &&
+      context.queryIntent.topics.includes("휴학") &&
+      isSpecificAcademicUnitRule(regulationName)
+    ) {
+      score -= 70;
+    }
   }
 
   if (context.queryIntent.intent === "eligibility") {
@@ -225,12 +263,25 @@ function scoreScope(article: ArticleRecord, context: RankingContext): { score: n
   let outOfScope = false;
   const reasons: string[] = [];
 
+  if (queryScope === "학부" && /(교원|직원|조교|책임수업시간)/u.test(`${regulationName} ${title}`)) {
+    score -= 90;
+    outOfScope = true;
+    reasons.push("학부생 질문과 다른 대상");
+    return { score, outOfScope, reasons };
+  }
+
   for (const term of scopeTerms(queryScope)) {
     if (regulationName.includes(term) || title.includes(term)) {
-      score += 50;
+      score += queryScope === "학부" ? 20 : 50;
       reasons.push(`${queryScope} 범위 일치`);
-      return { score, outOfScope, reasons };
+      if (queryScope !== "학부") return { score, outOfScope, reasons };
+      break;
     }
+  }
+
+  if (queryScope === "학부" && isUndergraduateAuthority(regulationName)) {
+    score += 70;
+    reasons.push("학부 공통 규정");
   }
 
   if (queryScope === "unknown" || queryScope === "학생") return { score, outOfScope, reasons };
@@ -251,6 +302,16 @@ function scoreScope(article: ArticleRecord, context: RankingContext): { score: n
     reasons.push("특정 사업/부서/학과 내규");
   }
 
+  if (
+    queryScope === "일반대학원" &&
+    isSpecificAcademicUnitRule(regulationName) &&
+    !directQueryIncludesSpecificUnit(directQuery, regulationName)
+  ) {
+    score -= 80;
+    outOfScope = true;
+    reasons.push("일반대학원과 다른 대학원 가능성");
+  }
+
   return { score, outOfScope, reasons };
 }
 
@@ -260,6 +321,18 @@ function scopeTerms(scope: QueryScope): string[] {
 }
 
 function scopePenaltyTerms(scope: QueryScope): Array<{ term: string; penalty: number }> {
+  if (scope === "학부") {
+    return [
+      { term: "대학원", penalty: -70 },
+      { term: "전문대학원", penalty: -80 },
+      { term: "특수대학원", penalty: -80 },
+      { term: "교육대학원", penalty: -80 },
+      { term: "법학전문대학원", penalty: -80 },
+      { term: "교원", penalty: -70 },
+      { term: "직원", penalty: -60 },
+      { term: "조교", penalty: -60 },
+    ];
+  }
   if (scope === "일반대학원") {
     return [
       { term: "교육대학원", penalty: -80 },
@@ -274,6 +347,7 @@ function scopePenaltyTerms(scope: QueryScope): Array<{ term: string; penalty: nu
 }
 
 function scoreHighAuthority(regulationName: string, context: RankingContext): number {
+  if (context.queryIntent.scope === "학부" && isUndergraduateAuthority(regulationName)) return 42;
   if (context.queryIntent.scope !== "unknown" && context.queryIntent.intent !== "regulation_lookup") return 0;
   return HIGH_AUTHORITY_REGULATIONS.some((name) => regulationName.includes(name)) ? 24 : 0;
 }
@@ -296,6 +370,15 @@ function classifyArticle(
   if (outOfScope) return "out_of_scope";
   if (missingRequired && context.queryIntent.intent !== "article_lookup") return "low_relevance";
   if (!hasAnyTopicMatch(all, context) && context.queryIntent.articleNos.length === 0) return "low_relevance";
+  if (
+    context.queryIntent.scope === "unknown" &&
+    context.queryIntent.intent === "duration" &&
+    context.queryIntent.topics.includes("휴학") &&
+    isSpecificAcademicUnitRule(all) &&
+    score < 260
+  ) {
+    return "related";
+  }
   if (score >= 135) return "primary";
   if (score >= 45) return "related";
   return "low_relevance";
@@ -321,9 +404,21 @@ function isSpecificUnitRule(regulationName: string): boolean {
   return /(사업|track|센터|학과|전공|연구단|교육연구단|사업단|display)/iu.test(regulationName);
 }
 
+function isSpecificAcademicUnitRule(value: string): boolean {
+  if (value.includes("대학원학칙일반대학원시행세칙")) return false;
+  return /(전문대학원|특수대학원|교육대학원|법학전문대학원|대학원학칙(?!일반대학원).+시행세칙|학과|전공|사업단|연구단|운영내규|학사내규|mba|track|display)/iu.test(
+    value,
+  );
+}
+
+function isUndergraduateAuthority(regulationName: string): boolean {
+  return UNDERGRADUATE_AUTHORITY_REGULATIONS.some((name) => regulationName.includes(name));
+}
+
 function directQueryIncludesSpecificUnit(query: string, regulationName: string): boolean {
-  if (query.includes("사업") || query.includes("track") || query.includes("센터") || query.includes("학과")) return true;
   const compactRegulationName = compact(regulationName);
+  const specificTerms = query.match(/[가-힣a-z0-9·\-()]+(?:학과|학부|전공|사업단|센터|연구단|track|display)/giu) ?? [];
+  if (specificTerms.some((term) => compactRegulationName.includes(compact(term)))) return true;
   return query.length >= 4 && compactRegulationName.includes(query);
 }
 

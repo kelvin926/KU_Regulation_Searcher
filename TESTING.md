@@ -10,7 +10,7 @@ Branch: `main`
 | Check | Result |
 | --- | --- |
 | `npm install` | Passed |
-| `npm test` | Passed, 11 files / 39 tests |
+| `npm test` | Passed, 11 files / 42 tests |
 | `npm run build` | Passed |
 | `npm run rebuild:electron` | Passed |
 | `npm run dist:win` | Passed |
@@ -21,9 +21,9 @@ Branch: `main`
 
 | Check | Result |
 | --- | --- |
-| Installer file | `release\KU-Regulation-Setup-0.8.4.exe` |
-| Installer size | 179,133,417 bytes, about 170.8 MiB |
-| SHA-256 | `F7EE95C4F080E105083D4D105D1293E59BC292E3C2DA7612C129751C60F77B60` |
+| Installer file | `release\KU-Regulation-Setup-0.8.5.exe` |
+| Installer size | 179,136,751 bytes, about 170.8 MiB |
+| SHA-256 | `691AD1139F1FB5AA672849E30FA6208EC95AC43EB6F1C3E388DC0799002ED2D3` |
 | Install type | Per-user NSIS install |
 | Admin permission | Not required in silent install validation |
 | Install/update success | Passed, exit code 0 |
@@ -35,7 +35,7 @@ Branch: `main`
 | Installer icon | Verified by extracting the associated icon from the setup exe |
 | Packaged exe icon | Verified by extracting the associated icon from `release\win-unpacked\KU Regulation Searcher.exe` |
 | Installed exe icon | Verified by extracting the associated icon from the installed exe |
-| Installed version | `KU Regulation Searcher 0.8.4` in the current-user uninstall registry |
+| Installed version | `KU Regulation Searcher 0.8.5` in the current-user uninstall registry |
 | SmartScreen | Possible because the installer is unsigned |
 
 Note: this PC already had a pre-0.4.0 install under `%LOCALAPPDATA%\Programs\KU Regulation Assistant`. Updating in place keeps that installation folder for compatibility, but the visible app name, exe name, window title, shortcut name, and icon are `KU Regulation Searcher`. Fresh per-user installs use the current product name.
@@ -53,6 +53,22 @@ Note: this PC already had a pre-0.4.0 install under `%LOCALAPPDATA%\Programs\KU 
 | Regulation list cache | `%APPDATA%\KU Regulation Searcher\config\regulation-targets.json` exists |
 | Legacy migration | `%APPDATA%\KU Regulation Assistant\` is copied to the new 0.4.0 path when needed |
 | Repo data leakage | No repo-root `data`, `auth`, `logs`, `.env`, sqlite, or encrypted session files were created |
+
+## 0.8.5 validation notes
+
+- 0.8.5 continues the retrieval-quality work and does not add a new LLM provider, embedding search, MCP mode, auto-update, or code signing.
+- AI settings now explain the practical difference between Gemma 4 31B and Gemini 3.1 Flash Lite in non-technical Korean, including recommended use and tradeoff.
+- Undergraduate military-leave questions such as `미래모빌리티학과 학부생의 군입대는 어떻게 진행해야 하나요?` now normalize `학부생의`, preserve department names ending in `학과`, and expand `군입대` into military-leave terms.
+- 학부-scoped questions now boost `학사운영 규정` and `고려대학교 학칙`, while 대학원 and 교원-only rules are marked as different-scope candidates.
+- Broad leave-duration questions now prefer common undergraduate and graduate authority rules first and demote specific professional/special graduate-school rules to 참고 unless the user names that scope.
+- AI evidence auto-selection now selects only the highest relevance group by default, capped by the configured AI evidence limit, instead of selecting every 참고 candidate.
+- Gemini prompt instructions now explicitly distinguish 학부, 일반대학원, and 전문·특수대학원 evidence usage.
+- Added search-quality regression fixtures for undergraduate military-leave procedure questions and broad leave-duration authority ranking.
+- Representative full local DB checks:
+  - `미래모빌리티학과 학부생의 군입대는 어떻게 진행해야 하나요?`: `학사운영 규정 제29조 군입대 휴학` ranked first; graduate-school rules were marked as different-scope candidates.
+  - `일반휴학은 얼마나 가능한가요?`: `학사운영 규정 제23조`, `학사운영 규정 제25조`, `대학원학칙 제12조`, and `대학원 학사운영 규정 제7조` ranked before specific graduate-school rules.
+  - `복학하는 방법을 알려줘`: `학사운영 규정 제31조 복학의 신청` ranked first.
+  - `고려대에서 학생이 우주선을 빌릴 수 있나요?`: returned `NO_RELEVANT_ARTICLES`.
 
 ## 0.8.4 validation notes
 
