@@ -10,23 +10,24 @@ Branch: `main`
 | Check | Result |
 | --- | --- |
 | `npm install` | Passed |
-| `npm test` | Passed, 9 files / 25 tests |
+| `npm test` | Passed, 9 files / 26 tests |
 | `npm run build` | Passed |
 | `npm run rebuild:electron` | Passed |
 | `npm run dist:win` | Passed |
+| `npm run dev` | Passed, Vite served `http://127.0.0.1:6127/` and Electron process started |
 | `git diff --check` | Passed |
 
 ## Installer validation
 
 | Check | Result |
 | --- | --- |
-| Installer file | `release\KU-Regulation-Setup-0.8.1.exe` |
-| Installer size | 179,034,316 bytes, about 170.7 MiB |
-| SHA-256 | `81A016131F5527C016C1334CC66DC7CE0BFB032C418FEA629C8390E1A3653826` |
+| Installer file | `release\KU-Regulation-Setup-0.8.2.exe` |
+| Installer size | 179,045,489 bytes, about 170.8 MiB |
+| SHA-256 | `F3395EE3005C834101CDAD548B8F46D740B155FE2F38F5D350B899F4CEC6FE81` |
 | Install type | Per-user NSIS install |
 | Admin permission | Not required in silent install validation |
 | Install/update success | Passed, exit code 0 |
-| App launch success | Passed |
+| App launch success | Passed, installed app process started successfully |
 | Window title | `KU Regulation Searcher` |
 | Process name | `KU Regulation Searcher` |
 | Desktop shortcut | Created and targets `KU Regulation Searcher.exe` |
@@ -34,7 +35,7 @@ Branch: `main`
 | Installer icon | Verified by extracting the associated icon from the setup exe |
 | Packaged exe icon | Verified by extracting the associated icon from `release\win-unpacked\KU Regulation Searcher.exe` |
 | Installed exe icon | Verified by extracting the associated icon from the installed exe |
-| Installed version | `KU Regulation Searcher 0.8.1` in the current-user uninstall registry |
+| Installed version | `KU Regulation Searcher 0.8.2` in the current-user uninstall registry |
 | SmartScreen | Possible because the installer is unsigned |
 
 Note: this PC already had a pre-0.4.0 install under `%LOCALAPPDATA%\Programs\KU Regulation Assistant`. Updating in place keeps that installation folder for compatibility, but the visible app name, exe name, window title, shortcut name, and icon are `KU Regulation Searcher`. Fresh per-user installs use the current product name.
@@ -52,6 +53,18 @@ Note: this PC already had a pre-0.4.0 install under `%LOCALAPPDATA%\Programs\KU 
 | Regulation list cache | `%APPDATA%\KU Regulation Searcher\config\regulation-targets.json` exists |
 | Legacy migration | `%APPDATA%\KU Regulation Assistant\` is copied to the new 0.4.0 path when needed |
 | Repo data leakage | No repo-root `data`, `auth`, `logs`, `.env`, sqlite, or encrypted session files were created |
+
+## 0.8.2 validation notes
+
+- 0.8.2 is a refactoring and stability release, not a feature-expansion release.
+- Main-process IPC handlers were split by responsibility while preserving existing IPC channel names.
+- Database access was reorganized behind repository classes while preserving the existing SQLite schema behavior.
+- Regulation sync flow was split into target-cache, fetch/parse, progress, and runner modules without changing request delay or login behavior.
+- Gemini response handling now separates connection-test prompting, JSON parsing, answer validation, and usage handling.
+- Renderer pages now share small page-header, status-message, and stat-card components without changing the main screen flow.
+- Shared TypeScript types were tightened for auth status, sync status, answer confidence, and API result shape.
+- AI candidate-limit inputs now capture input values before the React state updater runs, preventing the settings page from turning blank while editing those numbers.
+- Existing Windows installer, AppData, login-session, encrypted Gemini API key, regulation sync, search, AI answer, and data-management behaviors were preserved.
 
 ## 0.8.1 validation notes
 
