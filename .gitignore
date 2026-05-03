@@ -12,6 +12,7 @@ coverage/
 /auth/
 /data/
 /logs/
+reports/
 *.storageState.json
 .DS_Store
 npm-debug.log*

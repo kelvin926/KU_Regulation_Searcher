@@ -38,6 +38,63 @@ describe("search quality reranking", () => {
     expect(result.articles.find((article) => article.id === 5)?.relevance?.group).toBe("out_of_scope");
   });
 
+  it("does not treat every department name ending in 학부 as an undergraduate-student scope", () => {
+    const expanded = expandQuery("건축사회환경공학부 신임교원 책임수업시간 감면 내규의 감면 신청 규정은?");
+
+    expect(expanded.queryIntent.scope).toBe("교원");
+  });
+
+  it("keeps directly named specific regulations in scope", () => {
+    const query = "SW중심대학사업 관리 운영 규정의 세종SW중심대학사업단 규정은?";
+    const expanded = expandQuery(query);
+    const result = rankArticlesForQuestion(
+      [
+        createArticle(1, "SW중심대학사업 관리 운영 규정", "제2조", "세종SW중심대학사업단", "세종SW중심대학사업단에 관한 사항을 정한다."),
+        createArticle(2, "세종캠퍼스 사무분장 규정", "제38조", "대학일자리플러스센터", "세종캠퍼스 행정부서의 사무분장을 정한다."),
+      ],
+      query,
+      expanded,
+      2,
+    );
+
+    expect(result.articles[0].id).toBe(1);
+    expect(result.articles[0].relevance?.group).toBe("primary");
+  });
+
+  it("keeps direct regulation and title matches as AI evidence for eligibility questions", () => {
+    const query = "Global KU 장학금 지급 내규의 지급대상 대상이나 요건은?";
+    const result = rankArticlesForQuestion(
+      [
+        createArticle(1, "Global KU 장학금 지급 내규", "제3조", "지급대상", "장학금은 본교 재학생 중 선발 기준을 충족한 자에게 지급한다."),
+        createArticle(2, "Global KU 장학금 지급 내규", "제4조", "장학금 지급", "장학금 지급 절차와 지급 시기를 정한다."),
+        createArticle(3, "BK21 운영 내규", "제13조", "참여대학원생에 대한 지원", "참여대학원생 장학금 지원 사항을 정한다."),
+      ],
+      query,
+      expandQuery(query),
+      3,
+    );
+
+    expect(result.articles[0].id).toBe(1);
+    expect(result.articles[0].relevance?.group).toBe("primary");
+  });
+
+  it("prioritizes the directly named article title within a specific regulation", () => {
+    const query = "SK미래관 대관에 관한 내규에서 대관 허가 및 제한은 어떻게 하나요?";
+    const result = rankArticlesForQuestion(
+      [
+        createArticle(1, "SK미래관 대관에 관한 내규", "제4조", "대관 허가 및 제한", "대관의 허가와 제한 사유를 정한다."),
+        createArticle(2, "SK미래관 대관에 관한 내규", "제6조", "대관 신청", "대관을 신청하려는 자는 신청서를 제출한다."),
+        createArticle(3, "공간대관규정", "제6조", "대관 신청 및 승인", "공간 대관 신청과 승인 절차를 정한다."),
+      ],
+      query,
+      expandQuery(query),
+      3,
+    );
+
+    expect(result.articles[0].id).toBe(1);
+    expect(result.articles[0].relevance?.group).toBe("primary");
+  });
+
   it("does not add generic procedure hints without a known regulation topic", () => {
     const expanded = expandQuery("외계인이 침공하면 어떻게 해야하나요?");
 

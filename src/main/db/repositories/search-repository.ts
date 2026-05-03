@@ -93,6 +93,31 @@ export class SearchRepository {
       .all(bind) as ArticleRecord[];
   }
 
+  searchArticlesByCompactRegulationName(regulationName: string, limit: number): ArticleRecord[] {
+    const compactName = compactForSqlLike(regulationName);
+    if (compactName.length < 4) return [];
+    const compactExpression = compactRegulationNameExpression();
+    return this.db
+      .prepare(
+        `SELECT *,
+                CASE
+                  WHEN ${compactExpression} = @exactRegulationName THEN 3
+                  WHEN ${compactExpression} LIKE @prefixRegulationName THEN 2
+                  ELSE 1
+                END AS rank
+         FROM articles
+         WHERE ${compactExpression} LIKE @regulationName
+         ORDER BY rank DESC, regulation_name ASC, seq_contents ASC, id ASC
+         LIMIT @limit`,
+      )
+      .all({
+        exactRegulationName: compactName,
+        prefixRegulationName: `${compactName}%`,
+        regulationName: `%${compactName}%`,
+        limit,
+      }) as ArticleRecord[];
+  }
+
   searchArticlesByBooleanQuery(query: string, limit: number): { articles: ArticleRecord[]; highlightTerms: string[] } {
     const parsed = parseSearchOperators(query);
     const { clause, bind } = buildBooleanSearchClause(parsed, [
@@ -206,4 +231,15 @@ function buildWeightedLikeScore(bindKey: string, rawTerm: string, baseWeight: nu
     `(CASE WHEN article_no LIKE @${bindKey} THEN ${exactWeight * 3} ELSE 0 END)`,
     `(CASE WHEN article_body LIKE @${bindKey} THEN ${baseWeight} ELSE 0 END)`,
   ].join(" + ");
+}
+
+function compactForSqlLike(value: string): string {
+  return value.replace(/[\s　.,;:()[\]{}<>〈〉《》「」『』·ㆍ\-_/\\]/gu, "").toLowerCase();
+}
+
+function compactRegulationNameExpression(): string {
+  return [" ", "　", ".", ",", ";", ":", "(", ")", "[", "]", "{", "}", "<", ">", "〈", "〉", "《", "》", "「", "」", "『", "』", "·", "ㆍ", "-", "_", "/", "\\"].reduce(
+    (expression, character) => `replace(${expression}, '${character.replace(/'/g, "''")}', '')`,
+    "lower(regulation_name)",
+  );
 }

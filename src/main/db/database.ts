@@ -124,6 +124,10 @@ export class DatabaseService {
     return this.search.searchArticlesByRegulationNameTerms(terms, limit);
   }
 
+  searchArticlesByCompactRegulationName(regulationName: string, limit: number): ArticleRecord[] {
+    return this.search.searchArticlesByCompactRegulationName(regulationName, limit);
+  }
+
   searchArticlesByBooleanQuery(query: string, limit: number): { articles: ArticleRecord[]; highlightTerms: string[] } {
     return this.search.searchArticlesByBooleanQuery(query, limit);
   }

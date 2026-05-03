@@ -131,8 +131,9 @@ function scoreArticle(article: ArticleRecord, index: number, context: RankingCon
   score += scoreHighAuthority(regulationName, context);
   score += scoreByIntent(article, context);
   score += scoreGenericArticle(title, body, context.queryIntent.intent);
+  score += scoreDirectEvidenceMatch(regulationName, title, context);
 
-  const group = classifyArticle(score, missingRequired, scopeAdjustment.outOfScope, all, regulationName, context);
+  const group = classifyArticle(score, missingRequired, scopeAdjustment.outOfScope, all, regulationName, title, context);
   return { article, index, score, group, reasons: reasons.slice(0, 3) };
 }
 
@@ -256,8 +257,8 @@ function scoreByIntent(article: ArticleRecord, context: RankingContext): number 
   }
 
   if (context.queryIntent.intent === "eligibility") {
-    if (/대상|자격|요건|조건|가능|해당/u.test(title)) score += 45;
-    if (/대상|자격|요건|조건|가능|해당/u.test(body)) score += 18;
+    if (/대상|자격|요건|조건|가능|해당|기준|선발|제한|적용/u.test(title)) score += 45;
+    if (/대상|자격|요건|조건|가능|해당|기준|선발|제한|적용/u.test(body)) score += 18;
     if (isMilitaryLeaveQuestion) {
       if (regulationName.includes("학사운영규정")) score += 110;
       if (title.includes("군입대휴학") || title.includes("군입대")) score += 150;
@@ -286,8 +287,8 @@ function scoreByIntent(article: ArticleRecord, context: RankingContext): number 
   }
 
   if (context.queryIntent.intent === "amount") {
-    if (/금액|수업료|등록금|지급액/u.test(title)) score += 50;
-    if (/금액|수업료|등록금|지급액/u.test(body)) score += 20;
+    if (/금액|수업료|등록금|지급액|지급|장학금|지원비|연구비|감면|대관료|사용료|수당|급여/u.test(title)) score += 50;
+    if (/금액|수업료|등록금|지급액|지급|장학금|지원비|연구비|감면|대관료|사용료|수당|급여/u.test(body)) score += 20;
   }
 
   if (context.queryIntent.intent === "definition") {
@@ -427,17 +428,29 @@ function scoreGenericArticle(title: string, body: string, intent: string): numbe
   return score;
 }
 
+function scoreDirectEvidenceMatch(regulationName: string, title: string, context: RankingContext): number {
+  let score = 0;
+  const directlyAskedRegulation = isDirectRegulationAsked(regulationName, context);
+  if (directlyAskedRegulation) score += 70;
+  if (isSpecificTitleAsked(title, context, directlyAskedRegulation)) score += 160;
+  return score;
+}
+
 function classifyArticle(
   score: number,
   missingRequired: boolean,
   outOfScope: boolean,
   all: string,
   regulationName: string,
+  title: string,
   context: RankingContext,
 ): ArticleRelevanceGroup {
   if (outOfScope) return "out_of_scope";
-  if (missingRequired && context.queryIntent.intent !== "article_lookup") return "low_relevance";
-  if (!hasAnyTopicMatch(all, context) && context.queryIntent.articleNos.length === 0) return "low_relevance";
+  const directEvidenceMatch = hasDirectEvidenceMatch(regulationName, title, context);
+  if (missingRequired && context.queryIntent.intent !== "article_lookup" && !directEvidenceMatch) return "low_relevance";
+  if (!hasAnyTopicMatch(all, context) && context.queryIntent.articleNos.length === 0 && !directEvidenceMatch) {
+    return "low_relevance";
+  }
   if (
     context.queryIntent.intent === "duration" &&
     context.queryIntent.topics.includes("휴학") &&
@@ -456,6 +469,25 @@ function classifyArticle(
   if (score >= 135) return "primary";
   if (score >= 45) return "related";
   return "low_relevance";
+}
+
+function hasDirectEvidenceMatch(regulationName: string, title: string, context: RankingContext): boolean {
+  const directlyAskedRegulation = isDirectRegulationAsked(regulationName, context);
+  return directlyAskedRegulation || isSpecificTitleAsked(title, context, directlyAskedRegulation);
+}
+
+function isDirectRegulationAsked(regulationName: string, context: RankingContext): boolean {
+  if (regulationName.length < 4) return false;
+  if (context.queryCompact.includes(regulationName)) return true;
+  const relaxedQuery = context.queryCompact.replace(/의/g, "");
+  const relaxedRegulation = regulationName.replace(/의/g, "");
+  return relaxedRegulation.length >= 4 && relaxedQuery.includes(relaxedRegulation);
+}
+
+function isSpecificTitleAsked(title: string, context: RankingContext, directlyAskedRegulation = false): boolean {
+  if (GENERIC_TITLES.test(title)) return false;
+  if (title.length >= 4 && context.queryCompact.includes(title)) return true;
+  return directlyAskedRegulation && title.length >= 2 && context.queryCompact.includes(title);
 }
 
 function hasAnyTopicMatch(all: string, context: RankingContext): boolean {
@@ -517,13 +549,17 @@ function directQueryIncludesSpecificUnit(query: string, regulationName: string):
   const compactRegulationName = compact(regulationName);
   const specificTerms = query.match(/[가-힣a-z0-9·\-()]+(?:대학원|학과|학부|전공|사업단|센터|연구단|track|display)/giu) ?? [];
   if (specificTerms.some((term) => compactRegulationName.includes(compact(term)))) return true;
+  if (compactRegulationName.length >= 4 && query.includes(compactRegulationName)) return true;
   return query.length >= 4 && compactRegulationName.includes(query);
 }
 
 function directQueryIncludesSpecificUndergraduateUnit(query: string, regulationName: string): boolean {
   const compactRegulationName = compact(regulationName);
   const specificTerms = query.match(/[가-힣a-z0-9·\-()]+대학(?!원)/giu) ?? [];
-  return specificTerms.some((term) => compactRegulationName.includes(compact(term)));
+  return (
+    specificTerms.some((term) => compactRegulationName.includes(compact(term))) ||
+    (compactRegulationName.length >= 4 && query.includes(compactRegulationName))
+  );
 }
 
 function pickDiverseArticles(scored: ScoreResult[], limit: number, context: RankingContext): ScoreResult[] {

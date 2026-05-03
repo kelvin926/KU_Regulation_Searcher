@@ -45,11 +45,16 @@ export class SearchService {
     }
 
     let articles: ArticleRecord[] = [];
+    const directRegulationName = extractDirectRegulationName(query);
+    if (directRegulationName) {
+      articles = this.db.searchArticlesByCompactRegulationName(directRegulationName, searchPoolLimit);
+    }
+
     if (expanded.intent === "regulation_lookup") {
-      articles = this.db.searchArticlesByRegulationNameTerms(
+      articles = [...articles, ...this.db.searchArticlesByRegulationNameTerms(
         [...expanded.scopeKeywords, ...expanded.coreKeywords].slice(0, 4),
         searchPoolLimit,
-      );
+      )];
     }
 
     articles = [...articles, ...this.db.searchArticlesByRequiredTerms(
@@ -99,6 +104,16 @@ export class SearchService {
     }
     return articles;
   }
+}
+
+function extractDirectRegulationName(query: string): string | null {
+  const normalized = query.replace(/\s+/g, " ").trim();
+  if (!normalized) return null;
+  const match = normalized.match(
+    /^(.+(?:운영\s*규\s*정|시행\s*세\s*칙|규\s*정|내\s*규|세\s*칙|학\s*칙|지\s*침|규\s*칙))(?:의|에서|\s|$)/u,
+  );
+  const name = match?.[1]?.trim();
+  return name && name.length >= 4 ? name : null;
 }
 
 function clampSearchCandidateLimit(value: number): number {

@@ -127,12 +127,14 @@ function detectScope(compactQuery: string): QueryScope {
   if (compactQuery.includes("일반대학원")) return "일반대학원";
   if (compactQuery.includes("전문대학원")) return "전문대학원";
   if (compactQuery.includes("특수대학원")) return "특수대학원";
-  if (compactQuery.includes("세종캠퍼스") || compactQuery.includes("세종")) return "세종캠퍼스";
-  if (compactQuery.includes("학부생") || compactQuery.includes("학부")) return "학부";
-  if (/(학과|전공)/u.test(compactQuery) && !EXPLICIT_GRADUATE_SCOPE.test(compactQuery)) return "학부";
+  if (compactQuery.includes("세종캠퍼스")) return "세종캠퍼스";
+  if (/학부(생|학생|재학생|과정|휴학|군입대|복학|자퇴|졸업|장학금|수강|입학|편입|규정|학칙)/u.test(compactQuery) || compactQuery === "학부") {
+    return "학부";
+  }
   if (compactQuery.includes("조교")) return "조교";
   if (compactQuery.includes("교원")) return "교원";
   if (compactQuery.includes("직원")) return "직원";
+  if (/(학과|전공)/u.test(compactQuery) && !EXPLICIT_GRADUATE_SCOPE.test(compactQuery)) return "학부";
   if (compactQuery.includes("학생")) return "학생";
   return "unknown";
 }

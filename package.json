@@ -1,6 +1,6 @@
 {
   "name": "ku-regulation-searcher",
-  "version": "0.8.6",
+  "version": "0.8.7",
   "description": "고려대학교 규정 로컬 검색 및 Gemini RAG Windows 앱",
   "author": "kelvin926",
   "license": "SEE LICENSE IN README.md",
@@ -13,6 +13,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.renderer.json && tsc --noEmit -p tsconfig.main.json",
     "build": "npm run typecheck && vite build && tsc -p tsconfig.main.json",
     "test": "npm rebuild better-sqlite3 && vitest run",
+    "eval:local-search": "npm rebuild better-sqlite3 && npm run build && node scripts/evaluate-local-search.cjs",
     "dist:win": "npm run build && npm run rebuild:electron && electron-builder --win dir --x64 --publish never && npm run win:icon && electron-builder --win nsis --x64 --prepackaged release/win-unpacked --publish never",
     "rebuild:electron": "electron-rebuild -f -w better-sqlite3",
     "win:icon": "node scripts/apply-win-icon.cjs"
