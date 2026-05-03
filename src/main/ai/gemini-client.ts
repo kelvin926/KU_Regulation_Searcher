@@ -1,17 +1,20 @@
-import { GoogleGenAI, Type } from "@google/genai";
+import { GoogleGenAI } from "@google/genai";
 import type { ArticleRecord, GeneratedAnswer, AiModelId, AiTokenUsage } from "../../shared/types";
 import { AppError } from "../../shared/errors";
 import { buildPolicyAnswerPrompt } from "./prompt-builder";
 import { parseAndValidateAnswer } from "./answer-validator";
+import { ANSWER_RESPONSE_SCHEMA } from "./response-parser";
+import { assertValidConnectionTestResponse, GEMINI_CONNECTION_TEST_PROMPT } from "./gemini-connection-test";
 
 export class GeminiClient {
   async testConnection(apiKey: string, modelId: AiModelId): Promise<AiTokenUsage> {
     const result = await this.generateRaw({
       apiKey,
       modelId,
-      prompt: "연결 테스트입니다. OK만 출력하세요.",
+      prompt: GEMINI_CONNECTION_TEST_PROMPT,
       responseMimeType: "text/plain",
     });
+    assertValidConnectionTestResponse(result.text);
     return result.usage;
   }
 
@@ -79,28 +82,6 @@ function toTokenUsage(usage: unknown): AiTokenUsage {
 function toNumber(value: unknown): number {
   return Number.isFinite(Number(value)) ? Number(value) : 0;
 }
-
-const ANSWER_RESPONSE_SCHEMA = {
-  type: Type.OBJECT,
-  required: ["answer", "used_article_ids", "confidence", "missing_evidence", "warnings"],
-  properties: {
-    answer: { type: Type.STRING },
-    used_article_ids: {
-      type: Type.ARRAY,
-      items: { type: Type.INTEGER },
-    },
-    confidence: {
-      type: Type.STRING,
-      format: "enum",
-      enum: ["high", "medium", "low"],
-    },
-    missing_evidence: { type: Type.BOOLEAN },
-    warnings: {
-      type: Type.ARRAY,
-      items: { type: Type.STRING },
-    },
-  },
-};
 
 function mapGeminiError(error: unknown): AppError {
   const message = error instanceof Error ? error.message : String(error);

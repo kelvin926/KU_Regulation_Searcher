@@ -1,18 +1,10 @@
-import { z } from "zod";
 import type { AnswerVerification, ArticleRecord, GeneratedAnswer } from "../../shared/types";
 import { normalizeArticleNo } from "../crawler/regulation-parser";
 import { AppError } from "../../shared/errors";
-
-const AnswerSchema = z.object({
-  answer: z.string(),
-  used_article_ids: z.array(z.coerce.number().int()).default([]),
-  confidence: z.enum(["high", "medium", "low"]).default("low"),
-  missing_evidence: z.boolean().default(false),
-  warnings: z.array(z.string()).default([]),
-});
+import { parseAnswerResponse } from "./response-parser";
 
 export function parseAndValidateAnswer(rawText: string, candidateArticles: ArticleRecord[]): GeneratedAnswer {
-  const parsed = parseAnswerJson(rawText);
+  const parsed = parseAnswerResponse(rawText);
   const candidateIds = new Set(candidateArticles.map((article) => article.id));
   const candidateNos = new Set(candidateArticles.map((article) => article.article_no));
   const citedArticleNos = extractArticleNos(parsed.answer);
@@ -58,26 +50,6 @@ function inferMissingUsedArticleIds(
     }
   }
   return Array.from(ids);
-}
-
-function parseAnswerJson(rawText: string): z.infer<typeof AnswerSchema> {
-  const trimmed = rawText.trim();
-  const candidates = [trimmed, extractJsonObject(trimmed)].filter(Boolean) as string[];
-  for (const candidate of candidates) {
-    try {
-      return AnswerSchema.parse(JSON.parse(candidate));
-    } catch {
-      continue;
-    }
-  }
-  throw new AppError("MODEL_RESPONSE_INVALID");
-}
-
-function extractJsonObject(text: string): string | null {
-  const start = text.indexOf("{");
-  const end = text.lastIndexOf("}");
-  if (start === -1 || end === -1 || end <= start) return null;
-  return text.slice(start, end + 1);
 }
 
 function extractArticleNos(text: string): string[] {
