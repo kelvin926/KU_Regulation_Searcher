@@ -1,16 +1,5 @@
-import { app, BrowserWindow, ipcMain, shell } from "electron";
-import fs from "node:fs";
-import { APP_NAME, AI_MODELS } from "../shared/constants";
-import { AppError } from "../shared/errors";
-import type {
-  AiModelId,
-  ApiResult,
-  DownloadRegulationFileRequest,
-  GenerateAnswerRequest,
-  RegulationTarget,
-  SearchArticlesRequest,
-  SearchPageRequest,
-} from "../shared/types";
+import { app, BrowserWindow } from "electron";
+import { APP_NAME } from "../shared/constants";
 import { getAppPaths, ensureAppPaths, migrateLegacyAppData } from "./app-paths";
 import { SessionManager } from "./auth/session-manager";
 import { DatabaseService } from "./db/database";
@@ -21,7 +10,8 @@ import { RegulationSyncService } from "./crawler/regulation-sync";
 import { SearchService } from "./search/fts-search";
 import { GeminiClient } from "./ai/gemini-client";
 import { createMainWindow } from "./window";
-import { downloadRegulationFile, listAttachmentFiles } from "./crawler/regulation-files";
+import { registerIpcHandlers } from "./ipc/register-ipc";
+import type { IpcContext } from "./ipc/types";
 
 app.setName(APP_NAME);
 
@@ -60,7 +50,19 @@ void app.whenReady().then(() => {
   searchService = new SearchService(db);
   geminiClient = new GeminiClient();
 
-  registerIpcHandlers();
+  const ipcContext: IpcContext = {
+    getMainWindow: () => mainWindow,
+    paths,
+    db,
+    logger,
+    sessionManager,
+    apiKeyStore,
+    settingsStore,
+    syncService,
+    searchService,
+    geminiClient,
+  };
+  registerIpcHandlers(ipcContext);
   mainWindow = createMainWindow();
 
   app.on("activate", () => {
@@ -79,207 +81,3 @@ app.on("window-all-closed", () => {
 app.on("before-quit", () => {
   db?.close();
 });
-
-function registerIpcHandlers(): void {
-  ipcMain.handle("auth:openLogin", async () =>
-    wrap(async () => {
-      if (!mainWindow) throw new AppError("UNKNOWN_API_ERROR");
-      return sessionManager.openLoginWindow(mainWindow);
-    }),
-  );
-
-  ipcMain.handle("auth:status", async () => wrap(() => sessionManager.checkStatus()));
-  ipcMain.handle("auth:logout", async () =>
-    wrap(async () => {
-      await sessionManager.clearSession();
-      return { status: "AUTH_REQUIRED", message: "[AUTH_REQUIRED] 로그인 세션을 삭제했습니다." };
-    }),
-  );
-
-  ipcMain.handle("sync:targets", async () => wrap(() => syncService.getTargets()));
-  ipcMain.handle("sync:targetCacheInfo", async () => wrap(() => syncService.getTargetCacheInfo()));
-  ipcMain.handle("sync:refreshTargets", async () =>
-    wrap(async () => {
-      const authStatus = await sessionManager.checkStatus();
-      if (authStatus.status !== "AUTHENTICATED") {
-        throw new AppError(authStatus.status, authStatus.message);
-      }
-      return syncService.refreshTargets();
-    }),
-  );
-  ipcMain.handle("sync:start", async (event, seqHistories?: number[]) =>
-    wrap(async () => {
-      const authStatus = await sessionManager.checkStatus();
-      if (authStatus.status !== "AUTHENTICATED") {
-        throw new AppError(authStatus.status, authStatus.message);
-      }
-      const targets = selectTargets(seqHistories);
-      return syncService.syncTargets(targets, (progress) => {
-        event.sender.send("sync:progress", progress);
-      });
-    }),
-  );
-  ipcMain.handle("sync:stop", async () =>
-    wrap(() => {
-      syncService.stop();
-      return true;
-    }),
-  );
-
-  ipcMain.handle("db:stats", async () => wrap(() => db.getStats()));
-  ipcMain.handle("db:failures", async () => wrap(() => db.listLatestFailures()));
-  ipcMain.handle("db:storedSeqHistories", async () => wrap(() => db.listStoredSeqHistories()));
-  ipcMain.handle("db:clear", async () =>
-    wrap(() => {
-      db.clearDatabase();
-      return db.getStats();
-    }),
-  );
-
-  ipcMain.handle("settings:get", async () => wrap(() => getAiSettings()));
-  ipcMain.handle("settings:setModel", async (_event, modelId: AiModelId) =>
-    wrap(() => {
-      assertModelId(modelId);
-      settingsStore.setModelId(modelId);
-      return getAiSettings();
-    }),
-  );
-  ipcMain.handle("settings:saveApiKey", async (_event, apiKey: string) =>
-    wrap(() => {
-      apiKeyStore.save(apiKey);
-      return getAiSettings();
-    }),
-  );
-  ipcMain.handle("settings:deleteApiKey", async () =>
-    wrap(() => {
-      apiKeyStore.delete();
-      return getAiSettings();
-    }),
-  );
-  ipcMain.handle("settings:testConnection", async (_event, apiKey?: string) =>
-    wrap(async () => {
-      const key = apiKey?.trim() ? apiKey : apiKeyStore.load();
-      const usage = await geminiClient.testConnection(key, settingsStore.getModelId());
-      settingsStore.addUsage(usage);
-      return true;
-    }),
-  );
-  ipcMain.handle("settings:setRagSettings", async (_event, settings: unknown) =>
-    wrap(() => {
-      settingsStore.setRagSettings(isRecord(settings) ? settings : {});
-      return getAiSettings();
-    }),
-  );
-  ipcMain.handle("settings:usage", async () => wrap(() => settingsStore.getUsage()));
-  ipcMain.handle("settings:resetUsage", async () =>
-    wrap(() => {
-      settingsStore.resetUsage();
-      return getAiSettings();
-    }),
-  );
-
-  ipcMain.handle("ask:search", async (_event, request: SearchArticlesRequest) =>
-    wrap(() => searchService.searchForQuestion(request.query, request.limit ?? settingsStore.getRagSettings().searchCandidateLimit)),
-  );
-  ipcMain.handle("ask:generate", async (_event, request: GenerateAnswerRequest) =>
-    wrap(async () => {
-      const articles = searchService.getCandidateArticles(request.articleIds, settingsStore.getRagSettings().maxCandidateLimit);
-      const answer = await geminiClient.generateAnswer({
-        apiKey: apiKeyStore.load(),
-        modelId: settingsStore.getModelId(),
-        question: request.question,
-        articles,
-      });
-      settingsStore.addUsage(answer.usage ?? {});
-      return answer;
-    }),
-  );
-  ipcMain.handle("search:articles", async (_event, request: SearchPageRequest) =>
-    wrap(() => searchService.searchPage(request)),
-  );
-  ipcMain.handle("articles:get", async (_event, id: number) => wrap(() => db.getArticleById(id)));
-  ipcMain.handle("files:attachments", async (_event, seq: number | null, seqHistory: number | null) =>
-    wrap(() => listAttachmentFiles(seq, seqHistory)),
-  );
-  ipcMain.handle("files:download", async (_event, request: DownloadRegulationFileRequest) =>
-    wrap(() => downloadRegulationFile(request)),
-  );
-
-  ipcMain.handle("data:clearSession", async () =>
-    wrap(async () => {
-      await sessionManager.clearSession();
-      return true;
-    }),
-  );
-  ipcMain.handle("data:openFolder", async () =>
-    wrap(async () => {
-      const paths = getAppPaths();
-      ensureAppPaths(paths);
-      const errorMessage = await shell.openPath(paths.userData);
-      if (errorMessage) {
-        throw new AppError("UNKNOWN_API_ERROR", errorMessage);
-      }
-      return true;
-    }),
-  );
-  ipcMain.handle("data:clearAll", async () =>
-    wrap(async () => {
-      db.clearDatabase();
-      await sessionManager.clearSession();
-      apiKeyStore.delete();
-      settingsStore.clear();
-      fs.writeFileSync(loggerPath(), "", "utf8");
-      return db.getStats();
-    }),
-  );
-}
-
-async function wrap<T>(fn: () => T | Promise<T>): Promise<ApiResult<T>> {
-  try {
-    return { ok: true, data: await fn() };
-  } catch (error) {
-    if (error instanceof AppError) {
-      return { ok: false, errorCode: error.code, message: error.message };
-    }
-    logger?.error("Unhandled IPC error", { errorType: error instanceof Error ? error.name : "unknown" });
-    return {
-      ok: false,
-      errorCode: "UNKNOWN_API_ERROR",
-      message: error instanceof Error ? error.message : "Unknown error",
-    };
-  }
-}
-
-function selectTargets(seqHistories?: number[]): RegulationTarget[] {
-  const allTargets = syncService.getTargets();
-  if (!seqHistories || seqHistories.length === 0) return allTargets;
-  const selected = new Set(seqHistories);
-  const targets = allTargets.filter((target) => selected.has(target.seqHistory));
-  if (targets.length === 0) {
-    throw new AppError("SYNC_FAILED", "동기화할 규정이 선택되지 않았습니다.");
-  }
-  return targets;
-}
-
-function getAiSettings() {
-  return {
-    modelId: settingsStore.getModelId(),
-    hasApiKey: apiKeyStore.hasApiKey(),
-    usage: settingsStore.getUsage(),
-    rag: settingsStore.getRagSettings(),
-  };
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-}
-
-function assertModelId(modelId: AiModelId): void {
-  if (!AI_MODELS.some((model) => model.id === modelId)) {
-    throw new AppError("MODEL_UNAVAILABLE");
-  }
-}
-
-function loggerPath(): string {
-  return getAppPaths().logPath;
-}
