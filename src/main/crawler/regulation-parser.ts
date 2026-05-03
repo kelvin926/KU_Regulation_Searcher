@@ -265,7 +265,7 @@ function fallbackParseWholeDocument(
   fallbackName: string,
 ): ParsedArticleForDb[] {
   const text = cleanDocumentFallbackText(readableText);
-  if (isNoDocPage($)) {
+  if (isFileOnlyPage($)) {
     return [
       {
         articleNo: "원문",
@@ -349,6 +349,16 @@ function cleanDocumentFallbackText(text: string): string {
 
 function isNoDocPage($: cheerio.CheerioAPI): boolean {
   return $(".nodoc_topwrap, .root_info_nodoc").length > 0;
+}
+
+function isFileOnlyPage($: cheerio.CheerioAPI): boolean {
+  if (isNoDocPage($)) return true;
+  const hasOriginalDownload = $("a[href*=\"fileDown\"]")
+    .toArray()
+    .some((element) => /fileDown\(\s*['"]?\d+['"]?\s*,\s*['"]?ori(?:Pdf)?['"]?\s*\)/iu.test($(element).attr("href") ?? ""));
+  const hasContentFrame = $("#lawDetailContent, iframe[name=\"lawFullContent\"]").length > 0;
+  const hasTitle = $(".rule_subject .Stit").text().trim().length > 0;
+  return hasOriginalDownload && hasContentFrame && hasTitle;
 }
 
 function isMeaningfulFallbackText($: cheerio.CheerioAPI, text: string): boolean {

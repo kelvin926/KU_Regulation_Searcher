@@ -98,6 +98,32 @@ describe("regulation parser", () => {
     expect(parsed.articles[0].articleBody).toContain("HWP/PDF 원문 파일");
   });
 
+  it("describes full-view pages with downloads but empty content frames as file-only regulations", () => {
+    const parsed = parseRegulationHtml(
+      `
+      <html>
+        <body>
+          <div class="rule_subject">
+            <div class="Stit">4단계 BK21 전기전자공학교육연구단 운영 내규</div>
+          </div>
+          <div class="btn_box">
+            <a href="javascript:fileDown('1795', 'ori');">전문다운</a>
+            <a href="javascript:fileDown('1795', 'oriPdf');">PDF 다운</a>
+          </div>
+          <div id="lawcon2" class="on">
+            <iframe src="/lmxsrv/law/lawFullContent.do?SEQ=1168&SEQ_HISTORY=1795#" id="lawDetailContent" name="lawFullContent"></iframe>
+          </div>
+        </body>
+      </html>
+      `,
+      "4단계 BK21 전기전자공학교육연구단 운영 내규",
+    );
+
+    expect(parsed.articles).toHaveLength(1);
+    expect(parsed.articles[0].articleNo).toBe("원문");
+    expect(parsed.articles[0].articleBody).toContain("로컬 검색 DB에는 이 규정의 원문 전문이 저장되지 않았습니다.");
+  });
+
   it("does not store processing placeholders as regulation content", () => {
     const parsed = parseRegulationHtml(
       `
