@@ -1,11 +1,12 @@
 import { Type } from "@google/genai";
 import { z } from "zod";
 import { AppError } from "../../shared/errors";
+import { ANSWER_CONFIDENCE_VALUES } from "../../shared/types";
 
 const AnswerSchema = z.object({
   answer: z.string(),
   used_article_ids: z.array(z.coerce.number().int()).default([]),
-  confidence: z.enum(["high", "medium", "low"]).default("low"),
+  confidence: z.enum(ANSWER_CONFIDENCE_VALUES).default("low"),
   missing_evidence: z.boolean().default(false),
   warnings: z.array(z.string()).default([]),
 });
@@ -24,7 +25,7 @@ export const ANSWER_RESPONSE_SCHEMA = {
     confidence: {
       type: Type.STRING,
       format: "enum",
-      enum: ["high", "medium", "low"],
+      enum: [...ANSWER_CONFIDENCE_VALUES],
     },
     missing_evidence: { type: Type.BOOLEAN },
     warnings: {

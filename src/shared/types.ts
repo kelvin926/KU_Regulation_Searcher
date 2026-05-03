@@ -3,6 +3,15 @@ import type { ErrorCode } from "./errors";
 
 export type AiModelId = (typeof AI_MODELS)[number]["id"];
 
+export const AUTH_STATUS_VALUES = ["AUTHENTICATED", "AUTH_REQUIRED", "AUTH_EXPIRED"] as const;
+export type AuthStatusCode = (typeof AUTH_STATUS_VALUES)[number];
+
+export const SYNC_STATUS_VALUES = ["idle", "running", "stopping", "completed", "failed", "cancelled"] as const;
+export type SyncStatus = (typeof SYNC_STATUS_VALUES)[number];
+
+export const ANSWER_CONFIDENCE_VALUES = ["high", "medium", "low"] as const;
+export type AnswerConfidence = (typeof ANSWER_CONFIDENCE_VALUES)[number];
+
 export interface RegulationTarget {
   regulationName: string;
   seqHistory: number;
@@ -58,7 +67,7 @@ export interface SyncFailure {
 }
 
 export interface SyncProgress {
-  status: "idle" | "running" | "stopping" | "completed" | "failed" | "cancelled";
+  status: SyncStatus;
   totalCount: number;
   successCount: number;
   failedCount: number;
@@ -75,7 +84,7 @@ export interface SyncSummary extends SyncProgress {
 }
 
 export interface AuthStatus {
-  status: "AUTHENTICATED" | "AUTH_REQUIRED" | "AUTH_EXPIRED";
+  status: AuthStatusCode;
   message: string;
 }
 
@@ -126,7 +135,7 @@ export interface GenerateAnswerRequest {
 export interface GeneratedAnswer {
   answer: string;
   used_article_ids: number[];
-  confidence: "high" | "medium" | "low";
+  confidence: AnswerConfidence;
   missing_evidence: boolean;
   warnings: string[];
   verification: AnswerVerification;
@@ -143,12 +152,19 @@ export interface AnswerVerification {
   warningMessage: string | null;
 }
 
-export interface ApiResult<T> {
-  ok: boolean;
-  data?: T;
-  errorCode?: ErrorCode;
-  message?: string;
-}
+export type ApiResult<T> =
+  | {
+      ok: true;
+      data: T;
+      errorCode?: never;
+      message?: never;
+    }
+  | {
+      ok: false;
+      data?: never;
+      errorCode?: ErrorCode;
+      message?: string;
+    };
 
 export interface SearchPageRequest {
   regulationName?: string;
