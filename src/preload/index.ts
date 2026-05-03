@@ -82,6 +82,7 @@ const api: KuRegulationApi = {
       ipcRenderer.invoke("files:download", request),
   },
   data: {
+    openFolder: (): Promise<ApiResult<boolean>> => ipcRenderer.invoke("data:openFolder"),
     clearSession: (): Promise<ApiResult<boolean>> => ipcRenderer.invoke("data:clearSession"),
     clearAll: (): Promise<ApiResult<DbStats>> => ipcRenderer.invoke("data:clearAll"),
   },

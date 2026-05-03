@@ -67,6 +67,7 @@ export interface KuRegulationApi {
     download: (request: DownloadRegulationFileRequest) => Promise<ApiResult<DownloadResult>>;
   };
   data: {
+    openFolder: () => Promise<ApiResult<boolean>>;
     clearSession: () => Promise<ApiResult<boolean>>;
     clearAll: () => Promise<ApiResult<DbStats>>;
   };

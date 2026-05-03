@@ -81,6 +81,7 @@ export class RegulationSyncService {
     const failures: SyncFailure[] = [];
     const completedSeqHistories: number[] = [];
     let successCount = 0;
+    this.db.clearSyncFailures();
     const syncLogId = this.db.beginSync(targets.length);
 
     const emit = (

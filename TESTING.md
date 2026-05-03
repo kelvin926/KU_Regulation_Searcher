@@ -10,7 +10,7 @@ Branch: `main`
 | Check | Result |
 | --- | --- |
 | `npm install` | Passed |
-| `npm test` | Passed, 9 files / 24 tests |
+| `npm test` | Passed, 9 files / 25 tests |
 | `npm run build` | Passed |
 | `npm run rebuild:electron` | Passed |
 | `npm run dist:win` | Passed |
@@ -20,9 +20,9 @@ Branch: `main`
 
 | Check | Result |
 | --- | --- |
-| Installer file | `release\KU-Regulation-Setup-0.8.0.exe` |
-| Installer size | 179,028,089 bytes, about 170.7 MiB |
-| SHA-256 | `29CC8E2BC2E1AA6A514C42C67CB17F4C07B20555D39669E798CBDC1EDED6FC78` |
+| Installer file | `release\KU-Regulation-Setup-0.8.1.exe` |
+| Installer size | 179,034,316 bytes, about 170.7 MiB |
+| SHA-256 | `81A016131F5527C016C1334CC66DC7CE0BFB032C418FEA629C8390E1A3653826` |
 | Install type | Per-user NSIS install |
 | Admin permission | Not required in silent install validation |
 | Install/update success | Passed, exit code 0 |
@@ -34,7 +34,7 @@ Branch: `main`
 | Installer icon | Verified by extracting the associated icon from the setup exe |
 | Packaged exe icon | Verified by extracting the associated icon from `release\win-unpacked\KU Regulation Searcher.exe` |
 | Installed exe icon | Verified by extracting the associated icon from the installed exe |
-| Installed version | `KU Regulation Searcher 0.8.0` in the current-user uninstall registry |
+| Installed version | `KU Regulation Searcher 0.8.1` in the current-user uninstall registry |
 | SmartScreen | Possible because the installer is unsigned |
 
 Note: this PC already had a pre-0.4.0 install under `%LOCALAPPDATA%\Programs\KU Regulation Assistant`. Updating in place keeps that installation folder for compatibility, but the visible app name, exe name, window title, shortcut name, and icon are `KU Regulation Searcher`. Fresh per-user installs use the current product name.
@@ -52,6 +52,13 @@ Note: this PC already had a pre-0.4.0 install under `%LOCALAPPDATA%\Programs\KU 
 | Regulation list cache | `%APPDATA%\KU Regulation Searcher\config\regulation-targets.json` exists |
 | Legacy migration | `%APPDATA%\KU Regulation Assistant\` is copied to the new 0.4.0 path when needed |
 | Repo data leakage | No repo-root `data`, `auth`, `logs`, `.env`, sqlite, or encrypted session files were created |
+
+## 0.8.1 validation notes
+
+- Candidate-count inputs in AI settings now keep draft values as text while editing, so blank or intermediate number input states no longer feed invalid numeric values into React state.
+- Candidate-count saving now validates values before sending them to the main process and shows a Korean validation message for out-of-range input.
+- Starting a new sync clears the previous sync failure list in both the UI and the local `sync_failures` table.
+- Added `저장 데이터 폴더 열기` to the data management screen. It opens `%APPDATA%\KU Regulation Searcher\` in Windows Explorer.
 
 ## 0.8.0 validation notes
 

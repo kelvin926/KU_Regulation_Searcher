@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain } from "electron";
+import { app, BrowserWindow, ipcMain, shell } from "electron";
 import fs from "node:fs";
 import { APP_NAME, AI_MODELS } from "../shared/constants";
 import { AppError } from "../shared/errors";
@@ -208,6 +208,17 @@ function registerIpcHandlers(): void {
   ipcMain.handle("data:clearSession", async () =>
     wrap(async () => {
       await sessionManager.clearSession();
+      return true;
+    }),
+  );
+  ipcMain.handle("data:openFolder", async () =>
+    wrap(async () => {
+      const paths = getAppPaths();
+      ensureAppPaths(paths);
+      const errorMessage = await shell.openPath(paths.userData);
+      if (errorMessage) {
+        throw new AppError("UNKNOWN_API_ERROR", errorMessage);
+      }
       return true;
     }),
   );

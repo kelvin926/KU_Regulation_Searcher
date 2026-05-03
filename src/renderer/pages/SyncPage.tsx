@@ -116,6 +116,7 @@ export function SyncPage() {
 
   async function start(seqHistories?: number[]) {
     setMessage(null);
+    setFailures([]);
     setProgressStartedAtMs(Date.now());
     const syncSeqHistories = seqHistories ?? targets.map((target) => target.seqHistory);
     setTargetStatuses(new Map(syncSeqHistories.map((seqHistory) => [seqHistory, "pending" as const])));

@@ -209,6 +209,10 @@ export class DatabaseService {
       .all(limit) as SyncFailure[];
   }
 
+  clearSyncFailures(): void {
+    this.db.prepare("DELETE FROM sync_failures").run();
+  }
+
   searchArticlesByFts(ftsQuery: string, limit: number): ArticleRecord[] {
     return this.db
       .prepare(

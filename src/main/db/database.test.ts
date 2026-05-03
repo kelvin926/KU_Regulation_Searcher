@@ -39,4 +39,37 @@ describe("DatabaseService", () => {
     expect(db.searchArticlePage({ articleNo: "제76조의2", limit: 10 })).toHaveLength(1);
     expect(db.searchArticlesByLike(["복학"], 10)[0].article_no).toBe("제76조의2");
   });
+
+  it("clears previous sync failures without deleting stored articles", () => {
+    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "ku-reg-db-"));
+    db = new DatabaseService(path.join(tempDir, "ku-policy.sqlite"));
+
+    db.upsertRegulation(
+      {
+        regulationName: "테스트 규정",
+        seqHistory: 100,
+        sourceUrl: "https://example.test/lawFullContent.do?SEQ_HISTORY=100",
+        fetchedAt: "2026-01-01T00:00:00.000Z",
+      },
+      {
+        regulationName: "테스트 규정",
+        articles: [{ articleNo: "제1조", articleTitle: "목적", articleBody: "본문", seqContents: 1 }],
+      },
+      "<html>raw</html>",
+    );
+    const syncLogId = db.beginSync(1);
+    db.finishSync(syncLogId, "failed", 0, 1, [
+      {
+        regulationName: "실패 규정",
+        seqHistory: 200,
+        errorCode: "SYNC_FAILED",
+        message: "실패",
+      },
+    ]);
+
+    expect(db.listLatestFailures()).toHaveLength(1);
+    db.clearSyncFailures();
+    expect(db.listLatestFailures()).toHaveLength(0);
+    expect(db.getStats().articleCount).toBe(1);
+  });
 });

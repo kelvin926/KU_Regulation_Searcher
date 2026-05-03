@@ -1,4 +1,4 @@
-import { Database, KeyRound, Trash2, UserX } from "lucide-react";
+import { Database, FolderOpen, KeyRound, Trash2, UserX } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { DbStats } from "../../shared/types";
 import { WarningBox } from "../components/WarningBox";
@@ -38,6 +38,13 @@ export function DataPage() {
           <div className="stat"><span>규정 저장 용량</span><strong>{formatBytes(stats?.storageBytes ?? 0)}</strong></div>
         </div>
         <div className="button-column">
+          <button type="button" className="secondary" onClick={() => run(async () => {
+            unwrap(await window.kuRegulation.data.openFolder());
+            setMessage("저장 데이터 폴더를 열었습니다.");
+          })}>
+            <FolderOpen size={17} />
+            저장 데이터 폴더 열기
+          </button>
           <button type="button" className="secondary danger" onClick={() => run(async () => {
             unwrap(await window.kuRegulation.db.clear());
             setMessage("저장된 규정을 초기화했습니다.");

@@ -6,6 +6,11 @@ import { ModelSelector } from "../components/ModelSelector";
 import { WarningBox } from "../components/WarningBox";
 import { getErrorMessage, unwrap } from "../lib/api";
 
+interface CandidateDraft {
+  searchCandidateLimit: string;
+  maxCandidateLimit: string;
+}
+
 export function AiSettingsPage() {
   const [settings, setSettings] = useState<AiSettings>({
     modelId: DEFAULT_MODEL_ID,
@@ -23,10 +28,10 @@ export function AiSettingsPage() {
       maxCandidateLimit: MAX_RAG_ARTICLES,
     },
   });
-  const [candidateDraft, setCandidateDraft] = useState<RagCandidateSettings>({
+  const [candidateDraft, setCandidateDraft] = useState<CandidateDraft>(toCandidateDraft({
     searchCandidateLimit: DEFAULT_RAG_ARTICLES,
     maxCandidateLimit: MAX_RAG_ARTICLES,
-  });
+  }));
   const [apiKey, setApiKey] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -35,7 +40,7 @@ export function AiSettingsPage() {
     void window.kuRegulation.settings.get().then((result) => {
       const next = unwrap(result);
       setSettings(next);
-      setCandidateDraft(next.rag);
+      setCandidateDraft(toCandidateDraft(next.rag));
     });
   }, []);
 
@@ -44,9 +49,15 @@ export function AiSettingsPage() {
   }
 
   async function saveCandidateSettings() {
-    const next = unwrap(await window.kuRegulation.settings.setRagSettings(candidateDraft));
+    const parsed = parseCandidateDraft(candidateDraft);
+    if (!parsed) {
+      setMessage(`후보 수는 ${MIN_RAG_ARTICLES}개부터 ${HARD_MAX_RAG_ARTICLES}개까지의 숫자로 입력하세요.`);
+      return;
+    }
+
+    const next = unwrap(await window.kuRegulation.settings.setRagSettings(parsed));
     setSettings(next);
-    setCandidateDraft(next.rag);
+    setCandidateDraft(toCandidateDraft(next.rag));
     setMessage("검색 후보 수와 AI 최대 근거 조항 수를 저장했습니다.");
   }
 
@@ -139,7 +150,7 @@ export function AiSettingsPage() {
               onChange={(event) =>
                 setCandidateDraft((previous) => ({
                   ...previous,
-                  searchCandidateLimit: Number(event.currentTarget.value),
+                  searchCandidateLimit: event.currentTarget.value,
                 }))
               }
             />
@@ -154,7 +165,7 @@ export function AiSettingsPage() {
               onChange={(event) =>
                 setCandidateDraft((previous) => ({
                   ...previous,
-                  maxCandidateLimit: Number(event.currentTarget.value),
+                  maxCandidateLimit: event.currentTarget.value,
                 }))
               }
             />
@@ -176,7 +187,7 @@ export function AiSettingsPage() {
                 };
                 const next = unwrap(await window.kuRegulation.settings.setRagSettings(defaults));
                 setSettings(next);
-                setCandidateDraft(next.rag);
+                setCandidateDraft(toCandidateDraft(next.rag));
                 setMessage("후보 수를 기본값으로 되돌렸습니다.");
               })
             }
@@ -205,6 +216,28 @@ export function AiSettingsPage() {
       </section>
     </div>
   );
+}
+
+function toCandidateDraft(settings: RagCandidateSettings): CandidateDraft {
+  return {
+    searchCandidateLimit: String(settings.searchCandidateLimit),
+    maxCandidateLimit: String(settings.maxCandidateLimit),
+  };
+}
+
+function parseCandidateDraft(draft: CandidateDraft): RagCandidateSettings | null {
+  const searchCandidateLimit = parseCandidateLimit(draft.searchCandidateLimit);
+  const maxCandidateLimit = parseCandidateLimit(draft.maxCandidateLimit);
+  if (searchCandidateLimit === null || maxCandidateLimit === null) return null;
+  return { searchCandidateLimit, maxCandidateLimit };
+}
+
+function parseCandidateLimit(value: string): number | null {
+  if (!/^\d+$/u.test(value.trim())) return null;
+  const number = Number(value);
+  if (!Number.isSafeInteger(number)) return null;
+  if (number < MIN_RAG_ARTICLES || number > HARD_MAX_RAG_ARTICLES) return null;
+  return number;
 }
 
 function Stat({ label, value }: { label: string; value: string }) {
