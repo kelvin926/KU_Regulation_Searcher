@@ -1,10 +1,12 @@
 import BetterSqlite3 from "better-sqlite3";
-import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import type { ArticleRecord, DbStats, RegulationRecord, SyncFailure } from "../../shared/types";
 import { runMigrations } from "./migrations";
-import { parseSearchOperators, type ParsedSearchOperators } from "../search/search-operators";
+import { ArticleRepository } from "./repositories/article-repository";
+import { RegulationRepository } from "./repositories/regulation-repository";
+import { SearchRepository } from "./repositories/search-repository";
+import { SyncLogRepository } from "./repositories/sync-log-repository";
 
 export interface ParsedArticleForDb {
   articleNo: string;
@@ -35,12 +37,20 @@ interface CountRow {
 export class DatabaseService {
   private readonly db: BetterSqlite3.Database;
   private readonly dbPath: string;
+  private readonly articles: ArticleRepository;
+  private readonly regulations: RegulationRepository;
+  private readonly search: SearchRepository;
+  private readonly syncLogs: SyncLogRepository;
 
   constructor(dbPath: string) {
     this.dbPath = dbPath;
     fs.mkdirSync(path.dirname(dbPath), { recursive: true });
     this.db = new BetterSqlite3(dbPath);
     runMigrations(this.db);
+    this.articles = new ArticleRepository(this.db);
+    this.regulations = new RegulationRepository(this.db);
+    this.search = new SearchRepository(this.db);
+    this.syncLogs = new SyncLogRepository(this.db);
   }
 
   close(): void {
@@ -73,87 +83,11 @@ export class DatabaseService {
   }
 
   upsertRegulation(meta: RegulationMetaForDb, parsed: ParsedRegulationForDb, rawHtml: string): RegulationRecord {
-    const rawHtmlHash = crypto.createHash("sha256").update(rawHtml).digest("hex");
-    const regulationName = parsed.regulationName || meta.regulationName;
-    const transaction = this.db.transaction(() => {
-      this.db
-        .prepare(
-          `INSERT INTO regulations (
-             regulation_name, regulation_code, department, seq, seq_history, source_url, fetched_at, raw_html_hash
-           ) VALUES (
-             @regulationName, @regulationCode, @department, @seq, @seqHistory, @sourceUrl, @fetchedAt, @rawHtmlHash
-           )
-           ON CONFLICT(seq_history) DO UPDATE SET
-             regulation_name = excluded.regulation_name,
-             regulation_code = excluded.regulation_code,
-             department = excluded.department,
-             seq = excluded.seq,
-             source_url = excluded.source_url,
-             fetched_at = excluded.fetched_at,
-             raw_html_hash = excluded.raw_html_hash`,
-        )
-        .run({
-          regulationName,
-          regulationCode: meta.regulationCode ?? null,
-          department: meta.department ?? null,
-          seq: meta.seq ?? null,
-          seqHistory: meta.seqHistory,
-          sourceUrl: meta.sourceUrl,
-          fetchedAt: meta.fetchedAt,
-          rawHtmlHash,
-        });
-
-      const regulation = this.db
-        .prepare("SELECT * FROM regulations WHERE seq_history = ?")
-        .get(meta.seqHistory) as RegulationRecord;
-
-      const articleStatement = this.db.prepare(
-        `INSERT INTO articles (
-           regulation_id, regulation_name, article_no, article_title, article_body,
-           seq, seq_history, seq_contents, source_url, fetched_at
-         ) VALUES (
-           @regulationId, @regulationName, @articleNo, @articleTitle, @articleBody,
-           @seq, @seqHistory, @seqContents, @sourceUrl, @fetchedAt
-         )
-         ON CONFLICT(regulation_name, article_no, seq_history) DO UPDATE SET
-           regulation_id = excluded.regulation_id,
-           article_title = excluded.article_title,
-           article_body = excluded.article_body,
-           seq = excluded.seq,
-           seq_contents = excluded.seq_contents,
-           source_url = excluded.source_url,
-           fetched_at = excluded.fetched_at`,
-      );
-
-      for (const article of parsed.articles) {
-        articleStatement.run({
-          regulationId: regulation.id,
-          regulationName,
-          articleNo: article.articleNo,
-          articleTitle: article.articleTitle,
-          articleBody: article.articleBody,
-          seq: meta.seq ?? null,
-          seqHistory: meta.seqHistory,
-          seqContents: article.seqContents,
-          sourceUrl: meta.sourceUrl,
-          fetchedAt: meta.fetchedAt,
-        });
-      }
-
-      return regulation;
-    });
-
-    return transaction();
+    return this.regulations.upsertRegulation(meta, parsed, rawHtml);
   }
 
   beginSync(totalCount: number): number {
-    const result = this.db
-      .prepare(
-        `INSERT INTO sync_logs (started_at, status, total_count, success_count, failed_count)
-         VALUES (?, 'running', ?, 0, 0)`,
-      )
-      .run(new Date().toISOString(), totalCount);
-    return Number(result.lastInsertRowid);
+    return this.syncLogs.beginSync(totalCount);
   }
 
   finishSync(
@@ -163,110 +97,27 @@ export class DatabaseService {
     failedCount: number,
     failures: SyncFailure[],
   ): void {
-    const transaction = this.db.transaction(() => {
-      this.db
-        .prepare(
-          `UPDATE sync_logs
-           SET finished_at = ?, status = ?, success_count = ?, failed_count = ?, error_summary = ?
-           WHERE id = ?`,
-        )
-        .run(
-          new Date().toISOString(),
-          status,
-          successCount,
-          failedCount,
-          failures.length > 0 ? JSON.stringify(failures) : null,
-          syncLogId,
-        );
-
-      const failureStatement = this.db.prepare(
-        `INSERT INTO sync_failures (
-           sync_log_id, regulation_name, seq_history, error_code, message, created_at
-         ) VALUES (?, ?, ?, ?, ?, ?)`,
-      );
-      for (const failure of failures) {
-        failureStatement.run(
-          syncLogId,
-          failure.regulationName,
-          failure.seqHistory,
-          failure.errorCode,
-          failure.message,
-          new Date().toISOString(),
-        );
-      }
-    });
-    transaction();
+    this.syncLogs.finishSync(syncLogId, status, successCount, failedCount, failures);
   }
 
   listLatestFailures(limit = 50): SyncFailure[] {
-    return this.db
-      .prepare(
-        `SELECT regulation_name AS regulationName, seq_history AS seqHistory, error_code AS errorCode, message
-         FROM sync_failures
-         ORDER BY id DESC
-         LIMIT ?`,
-      )
-      .all(limit) as SyncFailure[];
+    return this.syncLogs.listLatestFailures(limit);
   }
 
   clearSyncFailures(): void {
-    this.db.prepare("DELETE FROM sync_failures").run();
+    this.syncLogs.clearSyncFailures();
   }
 
   searchArticlesByFts(ftsQuery: string, limit: number): ArticleRecord[] {
-    return this.db
-      .prepare(
-        `SELECT a.*, bm25(article_fts, 2.0, 3.0, 2.0, 1.0) AS rank
-         FROM article_fts
-         JOIN articles a ON a.id = article_fts.rowid
-         WHERE article_fts MATCH ?
-         ORDER BY rank ASC
-         LIMIT ?`,
-      )
-      .all(ftsQuery, limit) as ArticleRecord[];
+    return this.search.searchArticlesByFts(ftsQuery, limit);
   }
 
   searchArticlesByLike(terms: string[], limit: number): ArticleRecord[] {
-    if (terms.length === 0) return [];
-    const clauses = terms
-      .map(
-        (_, index) =>
-          `(regulation_name LIKE @term${index} OR article_no LIKE @term${index} OR article_title LIKE @term${index} OR article_body LIKE @term${index})`,
-      )
-      .join(" OR ");
-    const params = Object.fromEntries(terms.map((term, index) => [`term${index}`, `%${term}%`]));
-    return this.db
-      .prepare(
-        `SELECT *
-         FROM articles
-         WHERE ${clauses}
-         ORDER BY fetched_at DESC, id ASC
-         LIMIT @limit`,
-      )
-      .all({ ...params, limit }) as ArticleRecord[];
+    return this.search.searchArticlesByLike(terms, limit);
   }
 
   searchArticlesByBooleanQuery(query: string, limit: number): { articles: ArticleRecord[]; highlightTerms: string[] } {
-    const parsed = parseSearchOperators(query);
-    const { clause, bind } = buildBooleanSearchClause(parsed, [
-      "regulation_name",
-      "article_no",
-      "article_title",
-      "article_body",
-    ]);
-    if (!clause) return { articles: [], highlightTerms: [] };
-
-    const articles = this.db
-      .prepare(
-        `SELECT *
-         FROM articles
-         WHERE ${clause}
-         ORDER BY fetched_at DESC, id ASC
-         LIMIT @limit`,
-      )
-      .all({ ...bind, limit }) as ArticleRecord[];
-
-    return { articles, highlightTerms: parsed.highlightTerms };
+    return this.search.searchArticlesByBooleanQuery(query, limit);
   }
 
   searchArticlePage(params: {
@@ -275,66 +126,23 @@ export class DatabaseService {
     articleNo?: string;
     limit: number;
   }): ArticleRecord[] {
-    const where: string[] = [];
-    const bind: Record<string, unknown> = { limit: params.limit };
-    if (params.regulationName?.trim()) {
-      const parsed = parseSearchOperators(params.regulationName);
-      const result = buildBooleanSearchClause(parsed, ["regulation_name"], "regulationName");
-      if (result.clause) {
-        where.push(result.clause);
-        Object.assign(bind, result.bind);
-      }
-    }
-    if (params.bodyQuery?.trim()) {
-      const parsed = parseSearchOperators(params.bodyQuery);
-      const result = buildBooleanSearchClause(parsed, ["article_title", "article_body"], "bodyQuery");
-      if (result.clause) {
-        where.push(result.clause);
-        Object.assign(bind, result.bind);
-      }
-    }
-    if (params.articleNo?.trim()) {
-      where.push("article_no = @articleNo");
-      bind.articleNo = params.articleNo.trim();
-    }
-    const clause = where.length > 0 ? `WHERE ${where.join(" AND ")}` : "";
-    return this.db
-      .prepare(
-        `SELECT *
-         FROM articles
-         ${clause}
-         ORDER BY regulation_name ASC, seq_contents ASC, id ASC
-         LIMIT @limit`,
-      )
-      .all(bind) as ArticleRecord[];
+    return this.search.searchArticlePage(params);
   }
 
   getArticleById(id: number): ArticleRecord | null {
-    return (this.db.prepare("SELECT * FROM articles WHERE id = ?").get(id) as ArticleRecord | undefined) ?? null;
+    return this.articles.getArticleById(id);
   }
 
   getArticlesByIds(ids: number[]): ArticleRecord[] {
-    if (ids.length === 0) return [];
-    const placeholders = ids.map(() => "?").join(",");
-    return this.db
-      .prepare(`SELECT * FROM articles WHERE id IN (${placeholders}) ORDER BY regulation_name ASC, seq_contents ASC`)
-      .all(...ids) as ArticleRecord[];
+    return this.articles.getArticlesByIds(ids);
   }
 
   listRegulations(): RegulationRecord[] {
-    return this.db.prepare("SELECT * FROM regulations ORDER BY regulation_name ASC").all() as RegulationRecord[];
+    return this.regulations.listRegulations();
   }
 
   listStoredSeqHistories(): number[] {
-    const rows = this.db
-      .prepare(
-        `SELECT seq_history AS seqHistory
-         FROM regulations
-         WHERE seq_history IS NOT NULL
-         ORDER BY seq_history ASC`,
-      )
-      .all() as { seqHistory: number }[];
-    return rows.map((row) => row.seqHistory);
+    return this.regulations.listStoredSeqHistories();
   }
 
   clearDatabase(): void {
@@ -358,45 +166,4 @@ export class DatabaseService {
       }
     }, 0);
   }
-}
-
-function buildBooleanSearchClause(
-  parsed: ParsedSearchOperators,
-  fields: string[],
-  prefix = "query",
-): { clause: string; bind: Record<string, string> } {
-  const clauses: string[] = [];
-  const bind: Record<string, string> = {};
-  let index = 0;
-
-  for (const term of parsed.includeTerms) {
-    const key = `${prefix}Include${index}`;
-    clauses.push(buildLikeAnyField(fields, `@${key}`));
-    bind[key] = `%${term}%`;
-    index += 1;
-  }
-
-  if (parsed.anyTerms.length > 0) {
-    const anyClauses: string[] = [];
-    for (const term of parsed.anyTerms) {
-      const key = `${prefix}Any${index}`;
-      anyClauses.push(buildLikeAnyField(fields, `@${key}`));
-      bind[key] = `%${term}%`;
-      index += 1;
-    }
-    clauses.push(`(${anyClauses.join(" OR ")})`);
-  }
-
-  for (const term of parsed.excludeTerms) {
-    const key = `${prefix}Exclude${index}`;
-    clauses.push(`NOT ${buildLikeAnyField(fields, `@${key}`)}`);
-    bind[key] = `%${term}%`;
-    index += 1;
-  }
-
-  return { clause: clauses.join(" AND "), bind };
-}
-
-function buildLikeAnyField(fields: string[], bindName: string): string {
-  return `(${fields.map((field) => `${field} LIKE ${bindName}`).join(" OR ")})`;
 }
