@@ -10,7 +10,7 @@ Branch: `main`
 | Check | Result |
 | --- | --- |
 | `npm install` | Passed |
-| `npm test` | Passed, 10 files / 30 tests |
+| `npm test` | Passed, 11 files / 39 tests |
 | `npm run build` | Passed |
 | `npm run rebuild:electron` | Passed |
 | `npm run dist:win` | Passed |
@@ -21,9 +21,9 @@ Branch: `main`
 
 | Check | Result |
 | --- | --- |
-| Installer file | `release\KU-Regulation-Setup-0.8.3.exe` |
-| Installer size | 179,050,280 bytes, about 170.8 MiB |
-| SHA-256 | `80CE2486B1B483A776E4EAB79F16F175E4FE772B5AD464FE16110348AB4F5CA9` |
+| Installer file | `release\KU-Regulation-Setup-0.8.4.exe` |
+| Installer size | 179,133,417 bytes, about 170.8 MiB |
+| SHA-256 | `F7EE95C4F080E105083D4D105D1293E59BC292E3C2DA7612C129751C60F77B60` |
 | Install type | Per-user NSIS install |
 | Admin permission | Not required in silent install validation |
 | Install/update success | Passed, exit code 0 |
@@ -35,7 +35,7 @@ Branch: `main`
 | Installer icon | Verified by extracting the associated icon from the setup exe |
 | Packaged exe icon | Verified by extracting the associated icon from `release\win-unpacked\KU Regulation Searcher.exe` |
 | Installed exe icon | Verified by extracting the associated icon from the installed exe |
-| Installed version | `KU Regulation Searcher 0.8.3` in the current-user uninstall registry |
+| Installed version | `KU Regulation Searcher 0.8.4` in the current-user uninstall registry |
 | SmartScreen | Possible because the installer is unsigned |
 
 Note: this PC already had a pre-0.4.0 install under `%LOCALAPPDATA%\Programs\KU Regulation Assistant`. Updating in place keeps that installation folder for compatibility, but the visible app name, exe name, window title, shortcut name, and icon are `KU Regulation Searcher`. Fresh per-user installs use the current product name.
@@ -53,6 +53,25 @@ Note: this PC already had a pre-0.4.0 install under `%LOCALAPPDATA%\Programs\KU 
 | Regulation list cache | `%APPDATA%\KU Regulation Searcher\config\regulation-targets.json` exists |
 | Legacy migration | `%APPDATA%\KU Regulation Assistant\` is copied to the new 0.4.0 path when needed |
 | Repo data leakage | No repo-root `data`, `auth`, `logs`, `.env`, sqlite, or encrypted session files were created |
+
+## 0.8.4 validation notes
+
+- 0.8.4 is a retrieval-quality release, not a new-model release.
+- Added query intent parsing for regulation lookup, procedure, eligibility, duration, amount, definition, article lookup, and general questions.
+- Added scope-aware reranking for common Korea University scopes such as 일반대학원, 교육대학원, 법학전문대학원, 세종캠퍼스, 교원, 직원, 조교, and students.
+- Question words such as `방법`, `알려줘`, `설명`, `규정`, and `기준` are now treated as intent words or stopwords instead of high-weight search terms.
+- Korean domain verbs such as `복학하는`, `휴학하려면`, and `신청하려면` are normalized to their core domain terms.
+- Regulation-name questions such as `일반대학원 장학금 규정` now prioritize matching regulation names before broad article-body matches.
+- Search results now include relevance groups: 적용 가능성 높음, 참고, 다른 소속 가능성, 낮은 관련도.
+- The ask screen selects 적용 가능성 높음 and 참고 candidates by default; lower-relevance and out-of-scope candidates remain visible and can be selected manually.
+- Default visible search candidates are 30, while the default AI evidence limit is 12 and the hard AI evidence cap is 15.
+- AI prompt instructions now tell the model not to use out-of-scope candidate articles as direct evidence and to include only actually used article IDs.
+- Added search-quality regression fixtures for 복학 procedure queries, 일반대학원 장학금 regulation lookup, 제76조의2 exact article lookup, and broad 장학금 diversity.
+- Representative full local DB checks:
+  - `복학하는 방법을 알려줘`: 복학-related articles ranked above unrelated method articles.
+  - `일반대학원 장학금 규정`: `장학금 지급 규정 제15조` and `일반대학원 장학금 지급 세칙` articles ranked first.
+  - `고려대에서 학생이 우주선을 빌릴 수 있나요?`: returned `NO_RELEVANT_ARTICLES`.
+- Local silent update install passed with exit code 0, and the installed app process launched successfully.
 
 ## 0.8.3 validation notes
 

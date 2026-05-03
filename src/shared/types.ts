@@ -47,6 +47,17 @@ export interface ArticleRecord {
   source_url: string;
   fetched_at: string;
   rank?: number;
+  relevance?: ArticleRelevance;
+}
+
+export const ARTICLE_RELEVANCE_GROUP_VALUES = ["primary", "related", "out_of_scope", "low_relevance"] as const;
+export type ArticleRelevanceGroup = (typeof ARTICLE_RELEVANCE_GROUP_VALUES)[number];
+
+export interface ArticleRelevance {
+  group: ArticleRelevanceGroup;
+  label: string;
+  score: number;
+  reasons: string[];
 }
 
 export interface DbStats {

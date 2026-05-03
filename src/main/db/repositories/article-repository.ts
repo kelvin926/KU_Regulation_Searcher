@@ -11,8 +11,10 @@ export class ArticleRepository {
   getArticlesByIds(ids: number[]): ArticleRecord[] {
     if (ids.length === 0) return [];
     const placeholders = ids.map(() => "?").join(",");
-    return this.db
-      .prepare(`SELECT * FROM articles WHERE id IN (${placeholders}) ORDER BY regulation_name ASC, seq_contents ASC`)
+    const articles = this.db
+      .prepare(`SELECT * FROM articles WHERE id IN (${placeholders})`)
       .all(...ids) as ArticleRecord[];
+    const byId = new Map(articles.map((article) => [article.id, article]));
+    return ids.map((id) => byId.get(id)).filter((article): article is ArticleRecord => Boolean(article));
   }
 }

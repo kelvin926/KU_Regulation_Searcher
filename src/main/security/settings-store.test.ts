@@ -2,7 +2,13 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { DEFAULT_RAG_ARTICLES, HARD_MAX_RAG_ARTICLES, MAX_RAG_ARTICLES, MIN_RAG_ARTICLES } from "../../shared/constants";
+import {
+  DEFAULT_SEARCH_CANDIDATE_LIMIT,
+  HARD_MAX_RAG_ARTICLES,
+  HARD_MAX_SEARCH_CANDIDATE_LIMIT,
+  MAX_RAG_ARTICLES,
+  MIN_RAG_ARTICLES,
+} from "../../shared/constants";
 import type { AppPaths } from "../app-paths";
 import { SettingsStore } from "./settings-store";
 
@@ -18,7 +24,7 @@ describe("SettingsStore RAG candidate settings", () => {
     const store = new SettingsStore(createPaths());
 
     expect(store.getRagSettings()).toEqual({
-      searchCandidateLimit: DEFAULT_RAG_ARTICLES,
+      searchCandidateLimit: DEFAULT_SEARCH_CANDIDATE_LIMIT,
       maxCandidateLimit: MAX_RAG_ARTICLES,
     });
   });
@@ -27,11 +33,11 @@ describe("SettingsStore RAG candidate settings", () => {
     const store = new SettingsStore(createPaths());
 
     expect(store.setRagSettings({ searchCandidateLimit: 99, maxCandidateLimit: 1 })).toEqual({
-      searchCandidateLimit: HARD_MAX_RAG_ARTICLES,
+      searchCandidateLimit: HARD_MAX_SEARCH_CANDIDATE_LIMIT,
       maxCandidateLimit: MIN_RAG_ARTICLES,
     });
     expect(store.getRagSettings()).toEqual({
-      searchCandidateLimit: HARD_MAX_RAG_ARTICLES,
+      searchCandidateLimit: HARD_MAX_SEARCH_CANDIDATE_LIMIT,
       maxCandidateLimit: MIN_RAG_ARTICLES,
     });
   });

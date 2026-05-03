@@ -38,6 +38,61 @@ export class SearchRepository {
       .all({ ...params, limit }) as ArticleRecord[];
   }
 
+  searchArticlesByRequiredTerms(requiredTerms: string[], optionalTerms: string[], limit: number): ArticleRecord[] {
+    if (requiredTerms.length === 0) return [];
+    const fields = ["regulation_name", "article_no", "article_title", "article_body"];
+    const where: string[] = [];
+    const scoreParts: string[] = [];
+    const bind: Record<string, unknown> = { limit };
+
+    requiredTerms.forEach((term, index) => {
+      const key = `required${index}`;
+      where.push(buildLikeAnyField(fields, `@${key}`));
+      scoreParts.push(buildWeightedLikeScore(key, term, 16));
+      bind[key] = `%${term}%`;
+    });
+
+    optionalTerms.forEach((term, index) => {
+      const key = `optional${index}`;
+      scoreParts.push(buildWeightedLikeScore(key, term, 4));
+      bind[key] = `%${term}%`;
+    });
+
+    const score = scoreParts.length > 0 ? scoreParts.join(" + ") : "0";
+    return this.db
+      .prepare(
+        `SELECT *, (${score}) AS rank
+         FROM articles
+         WHERE ${where.join(" AND ")}
+         ORDER BY rank DESC, regulation_name ASC, seq_contents ASC, id ASC
+         LIMIT @limit`,
+      )
+      .all(bind) as ArticleRecord[];
+  }
+
+  searchArticlesByRegulationNameTerms(terms: string[], limit: number): ArticleRecord[] {
+    const filteredTerms = terms.filter(Boolean);
+    if (filteredTerms.length === 0) return [];
+    const bind: Record<string, unknown> = { limit };
+    const where = filteredTerms
+      .map((term, index) => {
+        const key = `nameTerm${index}`;
+        bind[key] = `%${term}%`;
+        return `regulation_name LIKE @${key}`;
+      })
+      .join(" AND ");
+
+    return this.db
+      .prepare(
+        `SELECT *
+         FROM articles
+         WHERE ${where}
+         ORDER BY regulation_name ASC, seq_contents ASC, id ASC
+         LIMIT @limit`,
+      )
+      .all(bind) as ArticleRecord[];
+  }
+
   searchArticlesByBooleanQuery(query: string, limit: number): { articles: ArticleRecord[]; highlightTerms: string[] } {
     const parsed = parseSearchOperators(query);
     const { clause, bind } = buildBooleanSearchClause(parsed, [
@@ -141,4 +196,14 @@ function buildBooleanSearchClause(
 
 function buildLikeAnyField(fields: string[], bindName: string): string {
   return `(${fields.map((field) => `${field} LIKE ${bindName}`).join(" OR ")})`;
+}
+
+function buildWeightedLikeScore(bindKey: string, rawTerm: string, baseWeight: number): string {
+  const exactWeight = rawTerm.length >= 4 ? baseWeight * 2 : baseWeight;
+  return [
+    `(CASE WHEN regulation_name LIKE @${bindKey} THEN ${exactWeight * 4} ELSE 0 END)`,
+    `(CASE WHEN article_title LIKE @${bindKey} THEN ${exactWeight * 5} ELSE 0 END)`,
+    `(CASE WHEN article_no LIKE @${bindKey} THEN ${exactWeight * 3} ELSE 0 END)`,
+    `(CASE WHEN article_body LIKE @${bindKey} THEN ${baseWeight} ELSE 0 END)`,
+  ].join(" + ");
 }

@@ -1,5 +1,12 @@
 import fs from "node:fs";
-import { DEFAULT_MODEL_ID, DEFAULT_RAG_ARTICLES, HARD_MAX_RAG_ARTICLES, MAX_RAG_ARTICLES, MIN_RAG_ARTICLES } from "../../shared/constants";
+import {
+  DEFAULT_MODEL_ID,
+  DEFAULT_SEARCH_CANDIDATE_LIMIT,
+  HARD_MAX_RAG_ARTICLES,
+  HARD_MAX_SEARCH_CANDIDATE_LIMIT,
+  MAX_RAG_ARTICLES,
+  MIN_RAG_ARTICLES,
+} from "../../shared/constants";
 import type { AiModelId, AiTokenUsage, AiUsageStats, RagCandidateSettings } from "../../shared/types";
 import type { AppPaths } from "../app-paths";
 
@@ -89,8 +96,12 @@ function normalizeUsage(usage?: Partial<AiUsageStats>): AiUsageStats {
 
 function normalizeRagSettings(settings?: Partial<RagCandidateSettings>): RagCandidateSettings {
   return {
-    searchCandidateLimit: clampInteger(settings?.searchCandidateLimit, DEFAULT_RAG_ARTICLES),
-    maxCandidateLimit: clampInteger(settings?.maxCandidateLimit, MAX_RAG_ARTICLES),
+    searchCandidateLimit: clampInteger(
+      settings?.searchCandidateLimit,
+      DEFAULT_SEARCH_CANDIDATE_LIMIT,
+      HARD_MAX_SEARCH_CANDIDATE_LIMIT,
+    ),
+    maxCandidateLimit: clampInteger(settings?.maxCandidateLimit, MAX_RAG_ARTICLES, HARD_MAX_RAG_ARTICLES),
   };
 }
 
@@ -109,8 +120,8 @@ function toNumber(value: unknown): number {
   return Number.isFinite(Number(value)) ? Number(value) : 0;
 }
 
-function clampInteger(value: unknown, fallback: number): number {
+function clampInteger(value: unknown, fallback: number, max: number): number {
   const number = Math.round(Number(value));
   if (!Number.isFinite(number)) return fallback;
-  return Math.min(Math.max(number, MIN_RAG_ARTICLES), HARD_MAX_RAG_ARTICLES);
+  return Math.min(Math.max(number, MIN_RAG_ARTICLES), max);
 }

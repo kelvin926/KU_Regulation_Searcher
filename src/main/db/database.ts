@@ -116,6 +116,14 @@ export class DatabaseService {
     return this.search.searchArticlesByLike(terms, limit);
   }
 
+  searchArticlesByRequiredTerms(requiredTerms: string[], optionalTerms: string[], limit: number): ArticleRecord[] {
+    return this.search.searchArticlesByRequiredTerms(requiredTerms, optionalTerms, limit);
+  }
+
+  searchArticlesByRegulationNameTerms(terms: string[], limit: number): ArticleRecord[] {
+    return this.search.searchArticlesByRegulationNameTerms(terms, limit);
+  }
+
   searchArticlesByBooleanQuery(query: string, limit: number): { articles: ArticleRecord[]; highlightTerms: string[] } {
     return this.search.searchArticlesByBooleanQuery(query, limit);
   }

@@ -1,15 +1,19 @@
 import type { AskSearchResult, ArticleRecord, SearchPageRequest } from "../../shared/types";
 import { AppError } from "../../shared/errors";
-import { HARD_MAX_RAG_ARTICLES, MIN_RAG_ARTICLES } from "../../shared/constants";
+import {
+  HARD_MAX_RAG_ARTICLES,
+  HARD_MAX_SEARCH_CANDIDATE_LIMIT,
+  MIN_RAG_ARTICLES,
+} from "../../shared/constants";
 import type { DatabaseService } from "../db/database";
 import { normalizeArticleNo } from "../crawler/regulation-parser";
 import { rankArticlesForQuestion } from "./article-ranker";
 import { expandQuery } from "./query-expander";
 import { parseSearchOperators } from "./search-operators";
 
-const RERANK_POOL_MULTIPLIER = 4;
-const MIN_RERANK_POOL_SIZE = 60;
-const MAX_RERANK_POOL_SIZE = 160;
+const RERANK_POOL_MULTIPLIER = 5;
+const MIN_RERANK_POOL_SIZE = 150;
+const MAX_RERANK_POOL_SIZE = 300;
 
 export class SearchService {
   constructor(private readonly db: DatabaseService) {}
@@ -20,7 +24,7 @@ export class SearchService {
       return { articles: [], expandedKeywords: [], errorCode: "LOCAL_DB_EMPTY" };
     }
 
-    const safeLimit = clampCandidateLimit(limit);
+    const safeLimit = clampSearchCandidateLimit(limit);
     const searchPoolLimit = getRerankPoolLimit(safeLimit);
     const operatorQuery = parseSearchOperators(query);
     if (operatorQuery.hasOperators) {
@@ -41,17 +45,33 @@ export class SearchService {
     }
 
     let articles: ArticleRecord[] = [];
+    if (expanded.intent === "regulation_lookup") {
+      articles = this.db.searchArticlesByRegulationNameTerms(
+        [...expanded.scopeKeywords, ...expanded.coreKeywords].slice(0, 4),
+        searchPoolLimit,
+      );
+    }
+
+    articles = [...articles, ...this.db.searchArticlesByRequiredTerms(
+      expanded.requiredTerms,
+      expanded.optionalTerms,
+      searchPoolLimit,
+    )];
     try {
-      articles = this.db.searchArticlesByFts(expanded.ftsQuery, searchPoolLimit);
+      if (articles.length < safeLimit) {
+        articles = [...articles, ...this.db.searchArticlesByFts(expanded.ftsQuery, searchPoolLimit)];
+      }
     } catch {
-      articles = this.db.searchArticlesByLike(expanded.keywords, searchPoolLimit);
+      if (articles.length < safeLimit) {
+        articles = [...articles, ...this.db.searchArticlesByLike(expanded.keywords, searchPoolLimit)];
+      }
     }
 
     if (articles.length === 0) {
       articles = this.db.searchArticlesByLike(expanded.keywords, searchPoolLimit);
     }
 
-    const ranked = rankArticlesForQuestion(articles, query, expanded.keywords, safeLimit);
+    const ranked = rankArticlesForQuestion(articles, query, expanded, safeLimit);
     return {
       articles: ranked.articles,
       expandedKeywords: expanded.keywords,
@@ -72,7 +92,7 @@ export class SearchService {
   }
 
   getCandidateArticles(articleIds: number[], maxCandidateLimit: number): ArticleRecord[] {
-    const limit = clampCandidateLimit(maxCandidateLimit);
+    const limit = clampAiCandidateLimit(maxCandidateLimit);
     const articles = this.db.getArticlesByIds(articleIds.slice(0, limit));
     if (articles.length === 0) {
       throw new AppError("NO_RELEVANT_ARTICLES");
@@ -81,7 +101,12 @@ export class SearchService {
   }
 }
 
-function clampCandidateLimit(value: number): number {
+function clampSearchCandidateLimit(value: number): number {
+  if (!Number.isFinite(value)) return HARD_MAX_SEARCH_CANDIDATE_LIMIT;
+  return Math.min(Math.max(Math.round(value), MIN_RAG_ARTICLES), HARD_MAX_SEARCH_CANDIDATE_LIMIT);
+}
+
+function clampAiCandidateLimit(value: number): number {
   if (!Number.isFinite(value)) return MIN_RAG_ARTICLES;
   return Math.min(Math.max(Math.round(value), MIN_RAG_ARTICLES), HARD_MAX_RAG_ARTICLES);
 }

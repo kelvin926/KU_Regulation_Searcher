@@ -1,7 +1,7 @@
 export const APP_NAME = "KU Regulation Searcher";
 export const APP_DATA_FOLDER_NAME = "KU Regulation Searcher";
 export const LEGACY_APP_DATA_FOLDER_NAME = "KU Regulation Assistant";
-export const APP_VERSION = "0.8.3";
+export const APP_VERSION = "0.8.4";
 
 export const KOREA_POLICY_ORIGIN = "https://policies.korea.ac.kr";
 export const KOREA_POLICY_MAIN_URL = `${KOREA_POLICY_ORIGIN}/lmxsrv/main/main.do`;
@@ -56,7 +56,9 @@ export const MVP_REGULATION_TARGETS = [
   },
 ] as const;
 
-export const DEFAULT_RAG_ARTICLES = 10;
-export const MAX_RAG_ARTICLES = 16;
+export const DEFAULT_SEARCH_CANDIDATE_LIMIT = 30;
+export const HARD_MAX_SEARCH_CANDIDATE_LIMIT = 30;
+export const DEFAULT_RAG_ARTICLES = DEFAULT_SEARCH_CANDIDATE_LIMIT;
+export const MAX_RAG_ARTICLES = 12;
 export const MIN_RAG_ARTICLES = 3;
-export const HARD_MAX_RAG_ARTICLES = 30;
+export const HARD_MAX_RAG_ARTICLES = 15;

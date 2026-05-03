@@ -581,6 +581,43 @@ progress {
   line-height: 1.35;
 }
 
+.article-badge-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 5px;
+}
+
+.relevance-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  border-radius: 999px;
+  padding: 0 8px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.relevance-badge.primary {
+  background: #e4f3ea;
+  color: #17663a;
+}
+
+.relevance-badge.related {
+  background: #e7f0ff;
+  color: #124e9f;
+}
+
+.relevance-badge.out_of_scope {
+  background: var(--ku-gold-soft);
+  color: #7a4c00;
+}
+
+.relevance-badge.low_relevance {
+  background: #eceff3;
+  color: #475467;
+}
+
 .icon-link,
 .icon-button {
   width: 32px;

@@ -1,7 +1,14 @@
 import { KeyRound, PlugZap, RotateCcw, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { AiModelId, AiSettings, RagCandidateSettings } from "../../shared/types";
-import { DEFAULT_MODEL_ID, DEFAULT_RAG_ARTICLES, HARD_MAX_RAG_ARTICLES, MAX_RAG_ARTICLES, MIN_RAG_ARTICLES } from "../../shared/constants";
+import {
+  DEFAULT_MODEL_ID,
+  DEFAULT_SEARCH_CANDIDATE_LIMIT,
+  HARD_MAX_RAG_ARTICLES,
+  HARD_MAX_SEARCH_CANDIDATE_LIMIT,
+  MAX_RAG_ARTICLES,
+  MIN_RAG_ARTICLES,
+} from "../../shared/constants";
 import { ModelSelector } from "../components/ModelSelector";
 import { WarningBox } from "../components/WarningBox";
 import { getErrorMessage, unwrap } from "../lib/api";
@@ -27,12 +34,12 @@ export function AiSettingsPage() {
       lastUsedAt: null,
     },
     rag: {
-      searchCandidateLimit: DEFAULT_RAG_ARTICLES,
+      searchCandidateLimit: DEFAULT_SEARCH_CANDIDATE_LIMIT,
       maxCandidateLimit: MAX_RAG_ARTICLES,
     },
   });
   const [candidateDraft, setCandidateDraft] = useState<CandidateDraft>(toCandidateDraft({
-    searchCandidateLimit: DEFAULT_RAG_ARTICLES,
+    searchCandidateLimit: DEFAULT_SEARCH_CANDIDATE_LIMIT,
     maxCandidateLimit: MAX_RAG_ARTICLES,
   }));
   const [apiKey, setApiKey] = useState("");
@@ -54,7 +61,9 @@ export function AiSettingsPage() {
   async function saveCandidateSettings() {
     const parsed = parseCandidateDraft(candidateDraft);
     if (!parsed) {
-      setMessage(`후보 수는 ${MIN_RAG_ARTICLES}개부터 ${HARD_MAX_RAG_ARTICLES}개까지의 숫자로 입력하세요.`);
+      setMessage(
+        `검색 후보 수는 ${MIN_RAG_ARTICLES}~${HARD_MAX_SEARCH_CANDIDATE_LIMIT}개, AI 최대 근거 조항 수는 ${MIN_RAG_ARTICLES}~${HARD_MAX_RAG_ARTICLES}개로 입력하세요.`,
+      );
       return;
     }
 
@@ -143,7 +152,7 @@ export function AiSettingsPage() {
             <input
               type="number"
               min={MIN_RAG_ARTICLES}
-              max={HARD_MAX_RAG_ARTICLES}
+              max={HARD_MAX_SEARCH_CANDIDATE_LIMIT}
               value={candidateDraft.searchCandidateLimit}
               onChange={(event) => {
                 const value = event.currentTarget.value;
@@ -182,7 +191,7 @@ export function AiSettingsPage() {
             onClick={() =>
               run(async () => {
                 const defaults = {
-                  searchCandidateLimit: DEFAULT_RAG_ARTICLES,
+                  searchCandidateLimit: DEFAULT_SEARCH_CANDIDATE_LIMIT,
                   maxCandidateLimit: MAX_RAG_ARTICLES,
                 };
                 const next = unwrap(await window.kuRegulation.settings.setRagSettings(defaults));
@@ -199,7 +208,7 @@ export function AiSettingsPage() {
           저장된 값: 검색 후보 {settings.rag.searchCandidateLimit}개 · AI 최대 근거 {settings.rag.maxCandidateLimit}개
         </div>
         <WarningBox tone="info">
-          후보 수를 늘리면 더 많은 조항을 검토할 수 있지만 답변 생성이 느려지고 Gemini 토큰 사용량이 늘어날 수 있습니다.
+          검색 후보 수는 화면에 보여줄 조항 수입니다. AI 최대 근거 조항 수를 너무 많이 늘리면 답변 품질이 흔들리고 Gemini 토큰 사용량이 늘어날 수 있어 최대 {HARD_MAX_RAG_ARTICLES}개로 제한합니다.
         </WarningBox>
         <PageHeader title="AI 사용량" level="h2" className="sub-heading" />
         <div className="stats-grid">
@@ -224,16 +233,16 @@ function toCandidateDraft(settings: RagCandidateSettings): CandidateDraft {
 }
 
 function parseCandidateDraft(draft: CandidateDraft): RagCandidateSettings | null {
-  const searchCandidateLimit = parseCandidateLimit(draft.searchCandidateLimit);
-  const maxCandidateLimit = parseCandidateLimit(draft.maxCandidateLimit);
+  const searchCandidateLimit = parseCandidateLimit(draft.searchCandidateLimit, HARD_MAX_SEARCH_CANDIDATE_LIMIT);
+  const maxCandidateLimit = parseCandidateLimit(draft.maxCandidateLimit, HARD_MAX_RAG_ARTICLES);
   if (searchCandidateLimit === null || maxCandidateLimit === null) return null;
   return { searchCandidateLimit, maxCandidateLimit };
 }
 
-function parseCandidateLimit(value: string): number | null {
+function parseCandidateLimit(value: string, max: number): number | null {
   if (!/^\d+$/u.test(value.trim())) return null;
   const number = Number(value);
   if (!Number.isSafeInteger(number)) return null;
-  if (number < MIN_RAG_ARTICLES || number > HARD_MAX_RAG_ARTICLES) return null;
+  if (number < MIN_RAG_ARTICLES || number > max) return null;
   return number;
 }

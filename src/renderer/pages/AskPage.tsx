@@ -1,7 +1,7 @@
 import { Bot, Search } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import type { ArticleRecord, GeneratedAnswer } from "../../shared/types";
-import { DEFAULT_RAG_ARTICLES, MAX_RAG_ARTICLES } from "../../shared/constants";
+import { DEFAULT_SEARCH_CANDIDATE_LIMIT, MAX_RAG_ARTICLES } from "../../shared/constants";
 import { ArticleCard } from "../components/ArticleCard";
 import { AnswerPanel } from "../components/AnswerPanel";
 import { CitationPanel } from "../components/CitationPanel";
@@ -21,7 +21,7 @@ export function AskPage() {
   const [messageTone, setMessageTone] = useState<"info" | "warning" | "danger">("warning");
   const [busyAction, setBusyAction] = useState<"searching" | "generating" | null>(null);
   const [candidateLimits, setCandidateLimits] = useState({
-    searchCandidateLimit: DEFAULT_RAG_ARTICLES,
+    searchCandidateLimit: DEFAULT_SEARCH_CANDIDATE_LIMIT,
     maxCandidateLimit: MAX_RAG_ARTICLES,
   });
   const busy = busyAction !== null;
@@ -41,7 +41,7 @@ export function AskPage() {
     try {
       const result = unwrap(await window.kuRegulation.ask.search({ query: question, limit: candidateLimits.searchCandidateLimit }));
       setArticles(result.articles);
-      setSelectedIds(new Set(result.articles.map((article) => article.id)));
+      setSelectedIds(new Set(result.articles.filter(isDefaultAiEvidence).map((article) => article.id)));
       setKeywords(result.expandedKeywords);
       if (result.errorCode === "LOCAL_DB_EMPTY") {
         setMessageTone("warning");
@@ -52,8 +52,11 @@ export function AskPage() {
       } else if (result.candidateLimitReached) {
         setMessageTone("info");
         setMessage(
-          `관련 조항이 ${result.searchedCandidateCount ?? result.articles.length}개 이상 검색되었습니다. 현재 화면과 AI 답변은 상위 ${result.articles.length}개 후보 기준입니다. 전체 소속을 비교하려면 검색 후보 수를 늘리거나 소속/대학원/학과를 좁혀 다시 검색하세요.`,
+          `관련 조항이 ${result.searchedCandidateCount ?? result.articles.length}개 이상 검색되었습니다. 현재 화면에는 재정렬된 상위 ${result.articles.length}개 후보가 표시되고, AI 답변에는 적용 가능성이 높은 근거 조항만 사용됩니다. 검색 결과가 넓으면 "일반대학원 복학", "일반대학원 장학금", "학사운영 규정 복학"처럼 소속이나 규정명을 함께 입력하세요.`,
         );
+      } else if (result.articles.length > 0 && result.articles.every((article) => !isDefaultAiEvidence(article))) {
+        setMessageTone("warning");
+        setMessage("직접 적용 가능성이 높은 조항이 없습니다. 필요하면 참고 조항을 직접 선택해 AI 답변을 생성하세요.");
       }
     } catch (error) {
       setMessageTone("danger");
@@ -124,7 +127,7 @@ export function AskPage() {
           </div>
           {selectedIds.size > candidateLimits.maxCandidateLimit && (
             <WarningBox tone="info">
-              선택된 근거 조항이 {selectedIds.size}개입니다. AI 답변에는 최대 {candidateLimits.maxCandidateLimit}개까지만 전달됩니다.
+              선택된 근거 조항이 {selectedIds.size}개입니다. AI 답변에는 관련도가 높은 순서대로 최대 {candidateLimits.maxCandidateLimit}개까지만 전달됩니다. 너무 많은 근거를 넣으면 답변 품질이 떨어질 수 있습니다.
             </WarningBox>
           )}
           <StatusMessage message={message} tone={messageTone} />
@@ -163,4 +166,9 @@ export function AskPage() {
       </div>
     </div>
   );
+}
+
+function isDefaultAiEvidence(article: ArticleRecord): boolean {
+  const group = article.relevance?.group;
+  return group !== "out_of_scope" && group !== "low_relevance";
 }

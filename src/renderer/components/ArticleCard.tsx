@@ -43,6 +43,11 @@ export function ArticleCard({
           <div className="meta-line">
             ID {article.id} · 수집 {formatDate(article.fetched_at)}
           </div>
+          {article.relevance && (
+            <div className="article-badge-row">
+              <span className={`relevance-badge ${article.relevance.group}`}>{article.relevance.label}</span>
+            </div>
+          )}
           <div className="meta-line source-url">출처 {article.source_url}</div>
         </div>
         <a className="icon-link" href={article.source_url} target="_blank" rel="noreferrer" title="출처 열기">

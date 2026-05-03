@@ -20,6 +20,10 @@ export function buildPolicyAnswerPrompt({
 - 근거가 부족하면 answer를 "[근거 없음] ..."으로 시작하고 missing_evidence=true, used_article_ids=[]로 둔다.
 - missing_evidence=false이면 used_article_ids에 실제 사용한 ARTICLE_ID를 1개 이상 넣는다.
 - 질문 범위가 넓어 제공 조항만으로 전체 소속, 전체 학과, 전체 대학원을 빠짐없이 보장할 수 없으면 그 한계를 answer와 warnings에 밝힌다.
+- 제공 조항 중 적용 범위가 질문과 다른 조항은 직접 근거로 쓰지 않는다.
+- 예를 들어 질문이 일반대학원인데 교육대학원, 법학전문대학원, 특수사업 내규이면 직접 근거로 쓰지 말고 필요 시 "적용 범위 확인 필요"로만 언급한다.
+- 질문 대상이나 소속이 불명확하면 단정하지 말고 적용 범위 확인이 필요하다고 말한다.
+- used_article_ids에는 실제로 답변에 사용한 조항만 넣는다. 후보에 있지만 사용하지 않은 조항을 억지로 포함하지 않는다.
 - 숫자 제한(학기, 기간, 횟수)을 묻는 질문에서는 제공 조항 중 숫자 제한이 있는 관련 조항을 우선 반영한다.
 - 규정 충돌, 소속별 예외, 행정부서 확인이 필요한 내용은 warnings에 짧게 넣는다.
 
@@ -44,6 +48,7 @@ function formatArticleForPrompt(article: ArticleRecord): string {
   return `[ARTICLE_ID: ${article.id}]
 규정명: ${article.regulation_name}
 실제 조문번호: ${article.article_no}${title}
+검색 관련도: ${article.relevance?.label ?? "참고"}
 ${compactArticleBody(article.article_body)}`;
 }
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_RAG_ARTICLES, HARD_MAX_RAG_ARTICLES, MAX_RAG_ARTICLES } from "../../shared/constants";
+import { DEFAULT_SEARCH_CANDIDATE_LIMIT, HARD_MAX_RAG_ARTICLES, MAX_RAG_ARTICLES } from "../../shared/constants";
 import type { ArticleRecord } from "../../shared/types";
 import type { DatabaseService } from "../db/database";
 import { SearchService } from "./fts-search";
@@ -7,14 +7,14 @@ import { SearchService } from "./fts-search";
 describe("SearchService RAG candidate limits", () => {
   it("returns the default number of question candidates", () => {
     const db = createMockDatabase({
-      ftsArticles: createArticles(20),
+      ftsArticles: createArticles(40),
     });
     const service = new SearchService(db);
 
-    const result = service.searchForQuestion("휴학", DEFAULT_RAG_ARTICLES);
+    const result = service.searchForQuestion("휴학", DEFAULT_SEARCH_CANDIDATE_LIMIT);
 
-    expect(DEFAULT_RAG_ARTICLES).toBe(10);
-    expect(result.articles).toHaveLength(10);
+    expect(DEFAULT_SEARCH_CANDIDATE_LIMIT).toBe(30);
+    expect(result.articles).toHaveLength(30);
     expect(result.candidateLimitReached).toBe(true);
   });
 
@@ -30,10 +30,10 @@ describe("SearchService RAG candidate limits", () => {
 
     const articles = service.getCandidateArticles(Array.from({ length: 25 }, (_, index) => index + 1), MAX_RAG_ARTICLES);
 
-    expect(MAX_RAG_ARTICLES).toBe(16);
-    expect(receivedIds).toHaveLength(16);
-    expect(articles).toHaveLength(16);
-    expect(receivedIds).toEqual(Array.from({ length: 16 }, (_, index) => index + 1));
+    expect(MAX_RAG_ARTICLES).toBe(12);
+    expect(receivedIds).toHaveLength(12);
+    expect(articles).toHaveLength(12);
+    expect(receivedIds).toEqual(Array.from({ length: 12 }, (_, index) => index + 1));
   });
 
   it("uses the saved custom maximum when collecting generated-answer candidates", () => {
@@ -76,6 +76,8 @@ function createMockDatabase(overrides: {
     getStats: () => ({ articleCount: 100 }),
     searchArticlesByFts: () => overrides.ftsArticles ?? [],
     searchArticlesByLike: () => [],
+    searchArticlesByRequiredTerms: () => [],
+    searchArticlesByRegulationNameTerms: () => [],
     searchArticlesByBooleanQuery: () => ({ articles: [], highlightTerms: [] }),
     getArticlesByIds: overrides.getArticlesByIds ?? (() => []),
   } as unknown as DatabaseService;
