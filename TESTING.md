@@ -10,8 +10,8 @@ Branch: `main`
 | Check | Result |
 | --- | --- |
 | `npm install` | Passed |
-| `npm test` | Passed, 11 files / 50 tests |
-| `npm run eval:local-search -- --count 5000` | Passed, 5,000 / 5,000 generated local DB questions |
+| `npm test` | Passed, 11 files / 53 tests |
+| `node scripts/evaluate-local-search.cjs --count 10000 --style complex --minPassRate 0.999` | Passed, 10,000 / 10,000 generated natural-language complex local DB questions |
 | `npm run build` | Passed |
 | `npm run rebuild:electron` | Passed |
 | `npm run dist:win` | Passed |
@@ -22,9 +22,9 @@ Branch: `main`
 
 | Check | Result |
 | --- | --- |
-| Installer file | `release\KU-Regulation-Setup-0.8.7.exe` |
-| Installer size | 179,148,478 bytes, about 170.9 MiB |
-| SHA-256 | `794514F36A9A062EF3C6A78F0DCC605403E9176B53190D116A7A465CD021E008` |
+| Installer file | `release\KU-Regulation-Setup-0.8.7.1.exe` |
+| Installer size | 179,152,477 bytes, about 170.9 MiB |
+| SHA-256 | `CCDDFF5AC1BA30F899EA8F37856B788F507F70DE82425A82294D12CBD21472F3` |
 | Install type | Per-user NSIS install |
 | Admin permission | Not required in silent install validation |
 | Install/update success | Passed, exit code 0 |
@@ -36,7 +36,8 @@ Branch: `main`
 | Installer icon | Verified by extracting the associated icon from the setup exe |
 | Packaged exe icon | Verified by extracting the associated icon from `release\win-unpacked\KU Regulation Searcher.exe` |
 | Installed exe icon | Verified by extracting the associated icon from the installed exe |
-| Installed version | `KU Regulation Searcher 0.8.7` in the current-user uninstall registry |
+| Installed version | `KU Regulation Searcher 0.8.7-1` in the current-user uninstall registry |
+| App display version | `0.8.7.1` embedded in the renderer bundle |
 | SmartScreen | Possible because the installer is unsigned |
 
 Note: this PC already had a pre-0.4.0 install under `%LOCALAPPDATA%\Programs\KU Regulation Assistant`. Updating in place keeps that installation folder for compatibility, but the visible app name, exe name, window title, shortcut name, and icon are `KU Regulation Searcher`. Fresh per-user installs use the current product name.
@@ -54,6 +55,15 @@ Note: this PC already had a pre-0.4.0 install under `%LOCALAPPDATA%\Programs\KU 
 | Regulation list cache | `%APPDATA%\KU Regulation Searcher\config\regulation-targets.json` exists |
 | Legacy migration | `%APPDATA%\KU Regulation Assistant\` is copied to the new 0.4.0 path when needed |
 | Repo data leakage | No repo-root `data`, `auth`, `logs`, `.env`, sqlite, or encrypted session files were created |
+
+## 0.8.7.1 validation notes
+
+- 0.8.7.1 expands the local-search evaluation to 10,000 natural-language complex questions generated from the locally stored regulation DB.
+- The 10,000-question run passed 10,000/10,000 checks: article lookup 1,770/1,770, title lookup 1,500/1,500, procedure 1,700/1,700, duration 646/646, eligibility 1,484/1,484, amount 700/700, evidence check 1,200/1,200, exception check 1,000/1,000.
+- Directly named regulations are collected even when the regulation name appears inside a longer natural sentence, not only at the start of the query.
+- Directly named regulations now stay eligible for AI evidence even when inferred scope terms such as `학부`, `직원`, or `조교` would otherwise mark the article out of scope.
+- `회의의 소집과 의결`-style questions no longer trigger military-leave keyword expansion from the word `소집`.
+- The npm package version is `0.8.7-1` for semver compatibility; the user-facing app/release version is `0.8.7.1`.
 
 ## 0.8.7 validation notes
 

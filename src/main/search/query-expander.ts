@@ -47,20 +47,76 @@ const STOP_WORDS = new Set([
   "있나요",
   "되나요",
   "어떤",
+  "누가",
+  "어느",
   "경우",
   "하나요",
   "내용",
+  "조문",
+  "사안이면",
   "찾아줘",
   "알려줘",
   "알려주세요",
+  "봐야",
   "안내",
   "설명",
   "관련된",
+  "관련해서",
+  "관련해",
   "필요한가요",
   "가능한가요",
   "가능한가",
   "가능",
   "해줘",
+  "확인해줘",
+  "답해줘",
+  "찾고",
+  "찾아서",
+  "있는데",
+  "궁금해",
+  "헷갈리는데",
+  "뭐라고",
+  "되어",
+  "제목",
+  "대해",
+  "실제",
+  "있으면",
+  "필요",
+  "서류나",
+  "예외나",
+  "다만이나",
+  "지급하거나",
+  "부담하는지",
+  "연결되",
+  "제외되",
+  "제외되는",
+  "갖춰야",
+  "하는지",
+  "누구",
+  "적용되는지",
+  "정리해줘",
+  "짧게",
+  "간단히",
+  "간단하게",
+  "정확히",
+  "실제로",
+  "혹시",
+  "제가",
+  "근거",
+  "같이",
+  "함께",
+  "한번에",
+  "한",
+  "번에",
+  "부분",
+  "볼",
+  "때",
+  "나오는",
+  "표현",
+  "핵심",
+  "적용할",
+  "주의할",
+  "주의점",
   "진행",
   "진행해야",
   "해야",
@@ -220,7 +276,7 @@ function tokenize(input: string): string[] {
 }
 
 function normalizeToken(token: string): string {
-  const normalized = stripVerbEnding(stripKoreanParticle(token));
+  const normalized = stripNominalSuffix(stripVerbEnding(stripKoreanParticle(token)));
   if (normalized === "대학원생") return "대학원";
   if (["군휴학", "입대휴학", "군입대휴학"].includes(normalized)) return "군입대";
   return normalized;
@@ -228,13 +284,18 @@ function normalizeToken(token: string): string {
 
 function stripKoreanParticle(token: string): string {
   if (/학과$/u.test(token)) return token;
-  return token.replace(/(은|는|이|가|을|를|와|과|의|도|만|에|에서|으로|로|에게|께|부터|까지)$/u, "");
+  if (/(허가|평가|대가|휴가|인가)$/u.test(token)) return token;
+  return token.replace(/(에서는|에는|으로는|로는|은|는|이|가|을|를|와|과|의|도|만|에|에서|으로|로|에게|께|부터|까지)$/u, "");
 }
 
 function stripVerbEnding(token: string): string {
   return token
     .replace(/(하는|하려면|하려고|하려|하면|하고|하여|해서|해야|한|할)$/u, "")
     .replace(/(하)$/u, "");
+}
+
+function stripNominalSuffix(token: string): string {
+  return token.replace(/(이라는|이라는지|이라고|이라|라는|라고|인지|처럼)$/u, "");
 }
 
 function isRequiredTerm(token: string): boolean {

@@ -61,6 +61,23 @@ describe("search quality reranking", () => {
     expect(result.articles[0].relevance?.group).toBe("primary");
   });
 
+  it("keeps directly named regulations in scope even when the article mentions staff roles", () => {
+    const query = "GKS융합전공 운영 지침 제4조를 봐야 할 것 같은데, 핵심 내용과 적용할 때 볼 부분을 알려줘.";
+    const result = rankArticlesForQuestion(
+      [
+        createArticle(1, "GKS융합전공 운영 지침", "제4조", "행정지원과 조교", "GKS융합전공 운영을 위한 행정지원과 조교 사항을 정한다."),
+        createArticle(2, "교우회 학술상 수상 후보자 추천 운영 지침", "제4조", "추천절차", "추천 절차와 제출 서류를 정한다."),
+        createArticle(3, "국제어학원 International Writing Services 업무 지침", "제4조", "담당행정인원 구성 및 업무", "담당행정인원 구성과 업무를 정한다."),
+      ],
+      query,
+      expandQuery(query),
+      3,
+    );
+
+    expect(result.articles[0].id).toBe(1);
+    expect(result.articles[0].relevance?.group).toBe("primary");
+  });
+
   it("keeps direct regulation and title matches as AI evidence for eligibility questions", () => {
     const query = "Global KU 장학금 지급 내규의 지급대상 대상이나 요건은?";
     const result = rankArticlesForQuestion(

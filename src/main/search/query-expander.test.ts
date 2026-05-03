@@ -65,4 +65,11 @@ describe("query expander", () => {
     expect(expanded.keywords).not.toContain("조건");
     expect(expanded.removedStopWords).toContain("조건");
   });
+
+  it("does not treat meeting convocation wording as military leave", () => {
+    const expanded = expandQuery("회의의 소집과 의결은 어떤 절차로 하나요?");
+
+    expect(expanded.keywords).toContain("소집");
+    expect(expanded.keywords).not.toEqual(expect.arrayContaining(["군입대", "군입대휴학", "입영통지서"]));
+  });
 });

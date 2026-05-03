@@ -66,17 +66,47 @@ describe("SearchService RAG candidate limits", () => {
 
     expect(receivedIds).toHaveLength(HARD_MAX_RAG_ARTICLES);
   });
+
+  it("searches directly named regulations inside natural questions", () => {
+    let directRegulationName = "";
+    const db = createMockDatabase({
+      compactRegulationArticles: (regulationName) => {
+        directRegulationName = regulationName;
+        return [
+          createArticle(1, "GKS융합전공 운영 지침", "제4조", "행정지원과 조교"),
+          createArticle(2, "GKS융합전공 운영 지침", "제5조", "운영위원회"),
+        ];
+      },
+      requiredTermArticles: [
+        createArticle(3, "교우회 학술상 수상 후보자 추천 운영 지침", "제4조", "추천절차"),
+      ],
+    });
+    const service = new SearchService(db);
+
+    const result = service.searchForQuestion(
+      "GKS융합전공 운영 지침 제4조를 봐야 할 것 같은데, 핵심 내용과 적용할 때 볼 부분을 알려줘.",
+      DEFAULT_SEARCH_CANDIDATE_LIMIT,
+    );
+
+    expect(directRegulationName).toBe("GKS융합전공 운영 지침");
+    expect(result.articles[0].id).toBe(1);
+    expect(result.articles[0].relevance?.group).toBe("primary");
+  });
 });
 
 function createMockDatabase(overrides: {
   ftsArticles?: ArticleRecord[];
+  compactRegulationArticles?: (regulationName: string, limit: number) => ArticleRecord[];
+  requiredTermArticles?: ArticleRecord[];
   getArticlesByIds?: (ids: number[]) => ArticleRecord[];
 }): DatabaseService {
   return {
     getStats: () => ({ articleCount: 100 }),
     searchArticlesByFts: () => overrides.ftsArticles ?? [],
     searchArticlesByLike: () => [],
-    searchArticlesByRequiredTerms: () => [],
+    searchArticlesByRequiredTerms: () => overrides.requiredTermArticles ?? [],
+    searchArticlesByCompactRegulationName: (regulationName: string, limit: number) =>
+      overrides.compactRegulationArticles?.(regulationName, limit) ?? [],
     searchArticlesByRegulationNameTerms: () => [],
     searchArticlesByBooleanQuery: () => ({ articles: [], highlightTerms: [] }),
     getArticlesByIds: overrides.getArticlesByIds ?? (() => []),
@@ -97,4 +127,20 @@ function createArticles(count: number): ArticleRecord[] {
     source_url: "https://example.test",
     fetched_at: "2026-01-01T00:00:00.000Z",
   }));
+}
+
+function createArticle(id: number, regulationName: string, articleNo: string, articleTitle: string): ArticleRecord {
+  return {
+    id,
+    regulation_id: id,
+    regulation_name: regulationName,
+    article_no: articleNo,
+    article_title: articleTitle,
+    article_body: `${articleTitle} 관련 본문`,
+    seq: null,
+    seq_history: id,
+    seq_contents: id,
+    source_url: "https://example.test",
+    fetched_at: "2026-01-01T00:00:00.000Z",
+  };
 }

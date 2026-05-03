@@ -14,6 +14,7 @@ import { parseSearchOperators } from "./search-operators";
 const RERANK_POOL_MULTIPLIER = 5;
 const MIN_RERANK_POOL_SIZE = 150;
 const MAX_RERANK_POOL_SIZE = 300;
+const DIRECT_REGULATION_POOL_SIZE = 800;
 
 export class SearchService {
   constructor(private readonly db: DatabaseService) {}
@@ -45,9 +46,14 @@ export class SearchService {
     }
 
     let articles: ArticleRecord[] = [];
-    const directRegulationName = extractDirectRegulationName(query);
-    if (directRegulationName) {
-      articles = this.db.searchArticlesByCompactRegulationName(directRegulationName, searchPoolLimit);
+    for (const directRegulationName of extractDirectRegulationNames(query)) {
+      articles = [
+        ...articles,
+        ...this.db.searchArticlesByCompactRegulationName(
+          directRegulationName,
+          Math.max(searchPoolLimit, DIRECT_REGULATION_POOL_SIZE),
+        ),
+      ];
     }
 
     if (expanded.intent === "regulation_lookup") {
@@ -106,14 +112,56 @@ export class SearchService {
   }
 }
 
-function extractDirectRegulationName(query: string): string | null {
+function extractDirectRegulationNames(query: string): string[] {
   const normalized = query.replace(/\s+/g, " ").trim();
-  if (!normalized) return null;
-  const match = normalized.match(
-    /^(.+(?:운영\s*규\s*정|시행\s*세\s*칙|규\s*정|내\s*규|세\s*칙|학\s*칙|지\s*침|규\s*칙))(?:의|에서|\s|$)/u,
+  if (!normalized) return [];
+  const names: string[] = [];
+  for (const match of normalized.matchAll(/(고려대학교\s+대학원)(?:의|에서|으로|로|에|을|를|\s|$)/gu)) {
+    addRegulationNameCandidate(names, match[1]);
+  }
+  const anchoredMatch = normalized.match(
+    /^(.+(?:운영\s*규\s*정|시행\s*세\s*칙|규\s*정|내\s*규|세\s*칙|학\s*칙|지\s*침|규\s*칙|회\s*칙|수\s*칙|규\s*약)(?:\s*\([^)]*\))?)(?:의|에서|\s|$)/u,
   );
-  const name = match?.[1]?.trim();
-  return name && name.length >= 4 ? name : null;
+  addRegulationNameCandidate(names, anchoredMatch?.[1]);
+
+  for (const match of normalized.matchAll(
+    /([가-힣A-Za-z0-9<>()\[\]·ㆍ\s_.\-]{2,90}?(?:운영\s*규\s*정|시행\s*세\s*칙|규\s*정|내\s*규|세\s*칙|학\s*칙|지\s*침|규\s*칙|회\s*칙|수\s*칙|규\s*약)(?:\s*\([^)]*\))?)(?:의|에서|으로|로|에|을|를|\s|$)/gu,
+  )) {
+    addRegulationNameCandidate(names, match[1]);
+  }
+
+  return Array.from(new Set(names)).slice(0, 4);
+}
+
+function addRegulationNameCandidate(names: string[], rawValue?: string): void {
+  const name = cleanRegulationNameCandidate(rawValue);
+  if (!name || name.length < 4) return;
+  names.push(name);
+}
+
+function cleanRegulationNameCandidate(rawValue?: string): string | null {
+  if (!rawValue) return null;
+  const chunks = rawValue
+    .replace(/[<>〈〉《》「」『』]/gu, " ")
+    .split(
+      /[,，.。?？!！]|(?:원칙만\s*보면\s*안\s*될\s*것\s*같은데|안\s*될\s*것\s*같은데|누구에게\s*적용되는지|적용되는지|금액이나\s*지원\s*기준을|지원\s*기준을|기준을\s*볼\s*때|포함되지\s*않는\s*경우나\s*예외가\s*있는지|언제까지|몇\s*학기까지|가능한지|있는지|헷갈리는데|궁금한데|찾는데|보는데|있는데|갖춰야\s*하는지|해야\s*하는지|하는지|연결되는|조항을|조항으로|근거로|기준으로|인데|라면|이면|면)\s*/u,
+    )
+    .map((value) => value.trim())
+    .filter(Boolean);
+  const value = (chunks.at(-1) ?? rawValue).trim();
+  const cleaned = value
+    .replace(/^(?:그리고|또는|혹시|근거는|근거로|기준으로)\s+/u, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (isGenericRegulationCandidate(cleaned)) return null;
+  return cleaned;
+}
+
+function isGenericRegulationCandidate(value: string): boolean {
+  const compacted = value.replace(/\s+/g, "");
+  const withoutRuleType = compacted.replace(/(운영규정|시행세칙|규정|내규|세칙|학칙|지침|규칙|회칙|수칙|규약)$/u, "");
+  if (withoutRuleType.length < 2) return true;
+  return /^(기간|기준|관련|절차|방법|대상|조건|요건|제한|예외|근거|조항|내용)+$/u.test(withoutRuleType);
 }
 
 function clampSearchCandidateLimit(value: number): number {

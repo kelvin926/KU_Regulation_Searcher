@@ -101,6 +101,7 @@ function scoreArticle(article: ArticleRecord, index: number, context: RankingCon
       reasons.push("조문번호 일치");
     } else if (articleNo.includes(compact(articleNoQuery))) {
       score += 45;
+      if (articleNo.startsWith(`${compact(articleNoQuery)}의`)) score -= 90;
     }
   }
 
@@ -132,6 +133,12 @@ function scoreArticle(article: ArticleRecord, index: number, context: RankingCon
   score += scoreByIntent(article, context);
   score += scoreGenericArticle(title, body, context.queryIntent.intent);
   score += scoreDirectEvidenceMatch(regulationName, title, context);
+  if (
+    isDirectRegulationAsked(regulationName, context) &&
+    context.queryIntent.articleNos.some((articleNoQuery) => normalizeArticleNo(article.article_no) === articleNoQuery)
+  ) {
+    score += 260;
+  }
 
   const group = classifyArticle(score, missingRequired, scopeAdjustment.outOfScope, all, regulationName, title, context);
   return { article, index, score, group, reasons: reasons.slice(0, 3) };
@@ -431,8 +438,8 @@ function scoreGenericArticle(title: string, body: string, intent: string): numbe
 function scoreDirectEvidenceMatch(regulationName: string, title: string, context: RankingContext): number {
   let score = 0;
   const directlyAskedRegulation = isDirectRegulationAsked(regulationName, context);
-  if (directlyAskedRegulation) score += 70;
-  if (isSpecificTitleAsked(title, context, directlyAskedRegulation)) score += 160;
+  if (directlyAskedRegulation) score += 90;
+  if (isSpecificTitleAsked(title, context, directlyAskedRegulation)) score += 280;
   return score;
 }
 
@@ -445,8 +452,11 @@ function classifyArticle(
   title: string,
   context: RankingContext,
 ): ArticleRelevanceGroup {
-  if (outOfScope) return "out_of_scope";
+  const directlyAskedRegulation = isDirectRegulationAsked(regulationName, context);
+  if (outOfScope && !directlyAskedRegulation) return "out_of_scope";
   const directEvidenceMatch = hasDirectEvidenceMatch(regulationName, title, context);
+  if (directEvidenceMatch && score >= 20) return "primary";
+  if (directEvidenceMatch) return "related";
   if (missingRequired && context.queryIntent.intent !== "article_lookup" && !directEvidenceMatch) return "low_relevance";
   if (!hasAnyTopicMatch(all, context) && context.queryIntent.articleNos.length === 0 && !directEvidenceMatch) {
     return "low_relevance";
@@ -563,6 +573,9 @@ function directQueryIncludesSpecificUndergraduateUnit(query: string, regulationN
 }
 
 function pickDiverseArticles(scored: ScoreResult[], limit: number, context: RankingContext): ScoreResult[] {
+  if (scored.some((item) => isDirectRegulationAsked(compact(item.article.regulation_name), context))) {
+    return scored.slice(0, limit);
+  }
   if (!shouldUseDiversity(context)) return scored.slice(0, limit);
 
   const selected: ScoreResult[] = [];

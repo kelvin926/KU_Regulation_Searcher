@@ -148,7 +148,7 @@ function detectTopics(compactQuery: string): string[] {
     topics.add("학위청구논문");
     topics.add("심사");
   }
-  if (/(군입대|군복무|군휴학|입대휴학|군입대휴학|병역|입영|소집)/u.test(compactQuery)) {
+  if (/(군입대|군복무|군휴학|입대휴학|군입대휴학|병역|입영)/u.test(compactQuery)) {
     topics.add("군입대");
     topics.add("군입대휴학");
     topics.add("휴학");
