@@ -49,6 +49,11 @@ export function AskPage() {
       } else if (result.errorCode === "NO_RELEVANT_ARTICLES") {
         setMessageTone("warning");
         setMessage("[근거 없음] 관련 조항을 찾지 못했습니다.");
+      } else if (result.candidateLimitReached) {
+        setMessageTone("info");
+        setMessage(
+          `관련 조항이 ${result.searchedCandidateCount ?? result.articles.length}개 이상 검색되었습니다. 현재 화면과 AI 답변은 상위 ${result.articles.length}개 후보 기준입니다. 전체 소속을 비교하려면 검색 후보 수를 늘리거나 소속/대학원/학과를 좁혀 다시 검색하세요.`,
+        );
       }
     } catch (error) {
       setMessageTone("danger");

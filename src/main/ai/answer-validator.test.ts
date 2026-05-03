@@ -65,4 +65,20 @@ describe("answer validator", () => {
     expect(answer.used_article_ids).toEqual([1]);
     expect(answer.verification.valid).toBe(true);
   });
+
+  it("flags internal article IDs written as legal article numbers", () => {
+    const answer = parseAndValidateAnswer(
+      JSON.stringify({
+        answer: "제공된 고려대 규정 조항 기준 제1조와 제20945조를 확인하세요.",
+        used_article_ids: [1],
+        confidence: "low",
+        missing_evidence: false,
+        warnings: [],
+      }),
+      candidates,
+    );
+
+    expect(answer.verification.valid).toBe(false);
+    expect(answer.warnings.join(" ")).toContain("ARTICLE_ID");
+  });
 });

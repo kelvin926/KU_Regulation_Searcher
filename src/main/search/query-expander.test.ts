@@ -22,4 +22,15 @@ describe("query expander", () => {
     const expanded = expandQuery("고려대에서 학생이 우주선을 빌릴 수 있나요?");
     expect(expanded.keywords).toEqual(["우주선"]);
   });
+
+  it("boosts leave duration terms without keeping generic 일반 as a standalone keyword", () => {
+    const expanded = expandQuery("일반 휴학은 몇학기까지 가능한가요?");
+    expect(expanded.keywords).toContain("휴학");
+    expect(expanded.keywords).toContain("일반휴학");
+    expect(expanded.keywords).toContain("휴학기간");
+    expect(expanded.keywords).toContain("휴학연한");
+    expect(expanded.keywords).toContain("통산");
+    expect(expanded.keywords).not.toContain("일반");
+    expect(expanded.keywords).not.toContain("몇학기");
+  });
 });

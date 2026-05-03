@@ -15,6 +15,7 @@ describe("SearchService RAG candidate limits", () => {
 
     expect(DEFAULT_RAG_ARTICLES).toBe(10);
     expect(result.articles).toHaveLength(10);
+    expect(result.candidateLimitReached).toBe(true);
   });
 
   it("caps generated-answer candidates at the maximum", () => {

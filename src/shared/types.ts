@@ -125,6 +125,8 @@ export interface AskSearchResult {
   articles: ArticleRecord[];
   expandedKeywords: string[];
   errorCode?: ErrorCode;
+  candidateLimitReached?: boolean;
+  searchedCandidateCount?: number;
 }
 
 export interface GenerateAnswerRequest {

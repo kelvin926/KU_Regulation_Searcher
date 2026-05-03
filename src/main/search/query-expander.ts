@@ -33,6 +33,9 @@ const SYNONYM_GROUPS = [
 ];
 
 const STOP_WORDS = new Set([
+  "몇",
+  "몇학기",
+  "얼마나",
   "어떻게",
   "무엇",
   "언제",
@@ -48,6 +51,9 @@ const STOP_WORDS = new Set([
   "관련된",
   "필요한가요",
   "가능한가요",
+  "가능",
+  "까지",
+  "일반",
   "주세요",
   "관련",
   "규정",
@@ -88,11 +94,24 @@ export function expandQuery(input: string): ExpandedQuery {
     keywords.add(articleNo);
   }
 
+  if (isLeaveDurationQuestion(compactInput)) {
+    for (const keyword of ["일반휴학", "휴학기간", "휴학연한", "통산", "학기", "초과", "넘지"]) {
+      keywords.add(keyword);
+    }
+  }
+
   const keywordList = Array.from(keywords).filter((keyword) => keyword.length > 0).slice(0, 24);
   return {
     keywords: keywordList,
     ftsQuery: buildFtsQuery(keywordList),
   };
+}
+
+function isLeaveDurationQuestion(compactInput: string): boolean {
+  return (
+    compactInput.includes("휴학") &&
+    /(몇|기간|연한|학기|까지|가능|최대|통산|초과|넘지)/u.test(compactInput)
+  );
 }
 
 function tokenize(input: string): string[] {
