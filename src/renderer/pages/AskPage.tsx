@@ -8,6 +8,8 @@ import { CitationPanel } from "../components/CitationPanel";
 import { SearchOperatorHint } from "../components/SearchOperatorHint";
 import { WarningBox } from "../components/WarningBox";
 import { getErrorMessage, unwrap } from "../lib/api";
+import { PageHeader } from "../components/PageHeader";
+import { StatusMessage } from "../components/StatusMessage";
 
 export function AskPage() {
   const [question, setQuestion] = useState("");
@@ -88,9 +90,7 @@ export function AskPage() {
     <div className="ask-layout">
       <div className="ask-column">
         <section className="panel">
-          <div className="section-heading">
-            <h1>규정 질의</h1>
-          </div>
+          <PageHeader title="규정 질의" />
           <textarea
             className="question-box"
             value={question}
@@ -122,7 +122,7 @@ export function AskPage() {
               선택된 근거 조항이 {selectedIds.size}개입니다. AI 답변에는 최대 {candidateLimits.maxCandidateLimit}개까지만 전달됩니다.
             </WarningBox>
           )}
-          {message && <WarningBox tone={messageTone}>{message}</WarningBox>}
+          <StatusMessage message={message} tone={messageTone} />
         </section>
         <section className="panel">
           <AnswerPanel answer={answer} articles={selectedArticles} />
@@ -130,10 +130,9 @@ export function AskPage() {
       </div>
       <div className="ask-column">
         <section className="panel">
-          <div className="section-heading">
-            <h2>검색된 근거 후보</h2>
+          <PageHeader title="검색된 근거 후보" level="h2">
             <span className="status-pill">{articles.length}개</span>
-          </div>
+          </PageHeader>
           <div className="article-list">
             {articles.map((article) => (
               <ArticleCard

@@ -6,6 +6,9 @@ import { extractSearchTerms, matchesSearchQuery } from "../lib/searchOperators";
 import { HighlightedText } from "../components/HighlightedText";
 import { SearchOperatorHint } from "../components/SearchOperatorHint";
 import { WarningBox } from "../components/WarningBox";
+import { PageHeader } from "../components/PageHeader";
+import { StatCard } from "../components/StatCard";
+import { StatusMessage } from "../components/StatusMessage";
 
 interface TargetFolder {
   name: string;
@@ -165,10 +168,9 @@ export function SyncPage() {
   return (
     <div className="page-grid">
       <section className="panel">
-        <div className="section-heading">
-          <h1>동기화</h1>
+        <PageHeader title="동기화">
           <span className={`status-pill ${getSyncStatusClass(syncStatus)}`}>{formatSyncStatus(syncStatus)}</span>
-        </div>
+        </PageHeader>
         <div className="button-row">
           <button type="button" disabled={loadingTargets} onClick={refreshTargetList}>
             <RotateCw size={17} className={loadingTargets ? "icon-spin" : undefined} />
@@ -254,7 +256,7 @@ export function SyncPage() {
             <div>{progress.message}</div>
           </div>
         )}
-        {message && <WarningBox tone={messageTone}>{message}</WarningBox>}
+        <StatusMessage message={message} tone={messageTone} />
         <div className="target-tree">
           {targetTree.map((folder) => (
             <TargetFolderNode
@@ -273,14 +275,12 @@ export function SyncPage() {
         </div>
       </section>
       <section className="panel">
-        <div className="section-heading">
-          <h2>동기화 상태</h2>
-        </div>
+        <PageHeader title="동기화 상태" level="h2" />
         <div className="stats-grid">
-          <Stat label="규정" value={stats?.regulationCount ?? 0} />
-          <Stat label="조문" value={stats?.articleCount ?? 0} />
-          <Stat label={syncActive ? "현재 성공" : "마지막 성공"} value={displayedSuccessCount} />
-          <Stat label={syncActive ? "현재 실패" : "마지막 실패"} value={displayedFailedCount} />
+          <StatCard label="규정" value={stats?.regulationCount ?? 0} />
+          <StatCard label="조문" value={stats?.articleCount ?? 0} />
+          <StatCard label={syncActive ? "현재 성공" : "마지막 성공"} value={displayedSuccessCount} />
+          <StatCard label={syncActive ? "현재 실패" : "마지막 실패"} value={displayedFailedCount} />
         </div>
         <div className="meta-line">마지막 동기화: {stats?.lastSyncAt ? new Date(stats.lastSyncAt).toLocaleString("ko-KR") : "-"}</div>
         <div className="failure-list">
@@ -528,13 +528,4 @@ function formatSyncActionError(error: unknown): string {
     return `${message} 로그인 탭에서 로그인 열기를 누르고, 고려대 공식 로그인 창에서 로그인한 뒤 창을 닫고 다시 시도하세요.`;
   }
   return message;
-}
-
-function Stat({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="stat">
-      <span>{label}</span>
-      <strong>{value}</strong>
-    </div>
-  );
 }

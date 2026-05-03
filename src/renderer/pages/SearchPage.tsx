@@ -6,7 +6,8 @@ import { HighlightedText } from "../components/HighlightedText";
 import { SearchOperatorHint } from "../components/SearchOperatorHint";
 import { getErrorMessage, unwrap } from "../lib/api";
 import { extractSearchTerms } from "../lib/searchOperators";
-import { WarningBox } from "../components/WarningBox";
+import { PageHeader } from "../components/PageHeader";
+import { StatusMessage } from "../components/StatusMessage";
 
 export function SearchPage() {
   const [regulationName, setRegulationName] = useState("");
@@ -31,9 +32,7 @@ export function SearchPage() {
   return (
     <div className="search-layout">
       <section className="panel">
-        <div className="section-heading">
-          <h1>규정 검색</h1>
-        </div>
+        <PageHeader title="규정 검색" />
         <form
           onSubmit={(event) => {
             event.preventDefault();
@@ -66,7 +65,7 @@ export function SearchPage() {
           </button>
           <SearchOperatorHint />
         </form>
-        {message && <WarningBox>{message}</WarningBox>}
+        <StatusMessage message={message} />
         <div className="result-list">
           {results.map((article) => (
             <button key={article.id} type="button" onClick={() => setSelected(article)}>

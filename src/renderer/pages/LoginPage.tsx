@@ -3,6 +3,8 @@ import { useState } from "react";
 import type { AuthStatus } from "../../shared/types";
 import { getErrorMessage, unwrap } from "../lib/api";
 import { WarningBox } from "../components/WarningBox";
+import { PageHeader } from "../components/PageHeader";
+import { StatusMessage } from "../components/StatusMessage";
 
 export function LoginPage() {
   const [status, setStatus] = useState<AuthStatus | null>(null);
@@ -40,12 +42,11 @@ export function LoginPage() {
   return (
     <div className="page-grid">
       <section className="panel">
-        <div className="section-heading">
-          <h1>로그인</h1>
+        <PageHeader title="로그인">
           <span className={`status-pill ${status?.status === "AUTHENTICATED" ? "ok" : "warn"}`}>
             {formatAuthStatus(status?.status)}
           </span>
-        </div>
+        </PageHeader>
         <div className="button-row">
           <button type="button" disabled={busy} onClick={openLogin}>
             <LogIn size={17} />
@@ -70,7 +71,7 @@ export function LoginPage() {
         <WarningBox tone="info">
           로그인 열기를 누르면 고려대학교 규정관리시스템 공식 로그인 창이 열립니다. 그 창에서 직접 로그인한 뒤 로그인 창을 닫아야 이 화면의 로그인 상태가 갱신됩니다.
         </WarningBox>
-        {message && <WarningBox tone={status?.status === "AUTHENTICATED" ? "info" : "warning"}>{message}</WarningBox>}
+        <StatusMessage message={message} tone={status?.status === "AUTHENTICATED" ? "info" : "warning"} />
       </section>
     </div>
   );

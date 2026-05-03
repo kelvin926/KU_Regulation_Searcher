@@ -3,6 +3,9 @@ import { useEffect, useState } from "react";
 import type { DbStats } from "../../shared/types";
 import { WarningBox } from "../components/WarningBox";
 import { getErrorMessage, unwrap } from "../lib/api";
+import { PageHeader } from "../components/PageHeader";
+import { StatCard } from "../components/StatCard";
+import { StatusMessage } from "../components/StatusMessage";
 
 export function DataPage() {
   const [stats, setStats] = useState<DbStats | null>(null);
@@ -29,13 +32,11 @@ export function DataPage() {
   return (
     <div className="page-grid">
       <section className="panel">
-        <div className="section-heading">
-          <h1>데이터 관리</h1>
-        </div>
+        <PageHeader title="데이터 관리" />
         <div className="stats-grid">
-          <div className="stat"><span>규정</span><strong>{stats?.regulationCount ?? 0}</strong></div>
-          <div className="stat"><span>조문</span><strong>{stats?.articleCount ?? 0}</strong></div>
-          <div className="stat"><span>규정 저장 용량</span><strong>{formatBytes(stats?.storageBytes ?? 0)}</strong></div>
+          <StatCard label="규정" value={stats?.regulationCount ?? 0} />
+          <StatCard label="조문" value={stats?.articleCount ?? 0} />
+          <StatCard label="규정 저장 용량" value={formatBytes(stats?.storageBytes ?? 0)} />
         </div>
         <div className="button-column">
           <button type="button" className="secondary" onClick={() => run(async () => {
@@ -74,7 +75,7 @@ export function DataPage() {
             로그인/규정/API 키 모두 삭제
           </button>
         </div>
-        {message && <WarningBox>{message}</WarningBox>}
+        <StatusMessage message={message} />
       </section>
       <section className="panel">
         <WarningBox tone="info">

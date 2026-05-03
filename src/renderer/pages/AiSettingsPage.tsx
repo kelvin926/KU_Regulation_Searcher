@@ -5,6 +5,9 @@ import { DEFAULT_MODEL_ID, DEFAULT_RAG_ARTICLES, HARD_MAX_RAG_ARTICLES, MAX_RAG_
 import { ModelSelector } from "../components/ModelSelector";
 import { WarningBox } from "../components/WarningBox";
 import { getErrorMessage, unwrap } from "../lib/api";
+import { PageHeader } from "../components/PageHeader";
+import { StatCard } from "../components/StatCard";
+import { StatusMessage } from "../components/StatusMessage";
 
 interface CandidateDraft {
   searchCandidateLimit: string;
@@ -76,12 +79,11 @@ export function AiSettingsPage() {
   return (
     <div className="page-grid">
       <section className="panel">
-        <div className="section-heading">
-          <h1>AI 설정</h1>
+        <PageHeader title="AI 설정">
           <span className={`status-pill ${settings.hasApiKey ? "ok" : "warn"}`}>
             {settings.hasApiKey ? "API 키 저장됨" : "API 키 없음"}
           </span>
-        </div>
+        </PageHeader>
         <label className="field">
           <span>Gemini API 키</span>
           <input
@@ -129,16 +131,12 @@ export function AiSettingsPage() {
         <WarningBox tone="info">
           Gemini API 호출 시 사용자 질문과 선택된 관련 조항 일부가 Google API로 전송됩니다. 개인정보, 학생정보, 민감한 내부 문서는 질문에 입력하지 마세요.
         </WarningBox>
-        {message && <WarningBox>{message}</WarningBox>}
+        <StatusMessage message={message} />
       </section>
       <section className="panel">
-        <div className="section-heading">
-          <h2>모델 선택</h2>
-        </div>
+        <PageHeader title="모델 선택" level="h2" />
         <ModelSelector value={settings.modelId} onChange={updateModel} />
-        <div className="section-heading sub-heading">
-          <h2>규정 질의 후보 수</h2>
-        </div>
+        <PageHeader title="규정 질의 후보 수" level="h2" className="sub-heading" />
         <div className="candidate-settings-grid">
           <label className="field">
             <span>검색 후보 수</span>
@@ -201,14 +199,12 @@ export function AiSettingsPage() {
         <WarningBox tone="info">
           후보 수를 늘리면 더 많은 조항을 검토할 수 있지만 답변 생성이 느려지고 Gemini 토큰 사용량이 늘어날 수 있습니다.
         </WarningBox>
-        <div className="section-heading sub-heading">
-          <h2>AI 사용량</h2>
-        </div>
+        <PageHeader title="AI 사용량" level="h2" className="sub-heading" />
         <div className="stats-grid">
-          <Stat label="AI 호출" value={`${settings.usage.requestCount.toLocaleString("ko-KR")}회`} />
-          <Stat label="전체 토큰" value={`${settings.usage.totalTokenCount.toLocaleString("ko-KR")}개`} />
-          <Stat label="입력 토큰" value={`${settings.usage.promptTokenCount.toLocaleString("ko-KR")}개`} />
-          <Stat label="출력 토큰" value={`${settings.usage.candidatesTokenCount.toLocaleString("ko-KR")}개`} />
+          <StatCard label="AI 호출" value={`${settings.usage.requestCount.toLocaleString("ko-KR")}회`} />
+          <StatCard label="전체 토큰" value={`${settings.usage.totalTokenCount.toLocaleString("ko-KR")}개`} />
+          <StatCard label="입력 토큰" value={`${settings.usage.promptTokenCount.toLocaleString("ko-KR")}개`} />
+          <StatCard label="출력 토큰" value={`${settings.usage.candidatesTokenCount.toLocaleString("ko-KR")}개`} />
         </div>
         <div className="meta-line">
           마지막 AI 사용: {settings.usage.lastUsedAt ? new Date(settings.usage.lastUsedAt).toLocaleString("ko-KR") : "없음"}
@@ -238,13 +234,4 @@ function parseCandidateLimit(value: string): number | null {
   if (!Number.isSafeInteger(number)) return null;
   if (number < MIN_RAG_ARTICLES || number > HARD_MAX_RAG_ARTICLES) return null;
   return number;
-}
-
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="stat">
-      <span>{label}</span>
-      <strong>{value}</strong>
-    </div>
-  );
 }
