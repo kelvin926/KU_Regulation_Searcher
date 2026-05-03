@@ -10,7 +10,7 @@ Branch: `main`
 | Check | Result |
 | --- | --- |
 | `npm install` | Passed |
-| `npm test` | Passed, 9 files / 26 tests |
+| `npm test` | Passed, 10 files / 30 tests |
 | `npm run build` | Passed |
 | `npm run rebuild:electron` | Passed |
 | `npm run dist:win` | Passed |
@@ -21,9 +21,9 @@ Branch: `main`
 
 | Check | Result |
 | --- | --- |
-| Installer file | `release\KU-Regulation-Setup-0.8.2.exe` |
-| Installer size | 179,045,486 bytes, about 170.8 MiB |
-| SHA-256 | `6A3E7D5FE66AC15498FC72573A5C05D6CEFFEB0924319B101E9C6B0AFB584526` |
+| Installer file | `release\KU-Regulation-Setup-0.8.3.exe` |
+| Installer size | 179,050,280 bytes, about 170.8 MiB |
+| SHA-256 | `80CE2486B1B483A776E4EAB79F16F175E4FE772B5AD464FE16110348AB4F5CA9` |
 | Install type | Per-user NSIS install |
 | Admin permission | Not required in silent install validation |
 | Install/update success | Passed, exit code 0 |
@@ -35,7 +35,7 @@ Branch: `main`
 | Installer icon | Verified by extracting the associated icon from the setup exe |
 | Packaged exe icon | Verified by extracting the associated icon from `release\win-unpacked\KU Regulation Searcher.exe` |
 | Installed exe icon | Verified by extracting the associated icon from the installed exe |
-| Installed version | `KU Regulation Searcher 0.8.2` in the current-user uninstall registry |
+| Installed version | `KU Regulation Searcher 0.8.3` in the current-user uninstall registry |
 | SmartScreen | Possible because the installer is unsigned |
 
 Note: this PC already had a pre-0.4.0 install under `%LOCALAPPDATA%\Programs\KU Regulation Assistant`. Updating in place keeps that installation folder for compatibility, but the visible app name, exe name, window title, shortcut name, and icon are `KU Regulation Searcher`. Fresh per-user installs use the current product name.
@@ -53,6 +53,17 @@ Note: this PC already had a pre-0.4.0 install under `%LOCALAPPDATA%\Programs\KU 
 | Regulation list cache | `%APPDATA%\KU Regulation Searcher\config\regulation-targets.json` exists |
 | Legacy migration | `%APPDATA%\KU Regulation Assistant\` is copied to the new 0.4.0 path when needed |
 | Repo data leakage | No repo-root `data`, `auth`, `logs`, `.env`, sqlite, or encrypted session files were created |
+
+## 0.8.3 validation notes
+
+- Question search now retrieves a larger local candidate pool and reranks it before showing the configured number of candidates.
+- Leave-duration questions such as `일반 휴학은 몇학기까지 가능한가요?` now boost terms such as `일반휴학`, `휴학기간`, `휴학연한`, `통산`, and `학기`.
+- Generic standalone terms such as `일반` and `몇학기` are filtered so unrelated matches like tutorial/general committee text are less likely to outrank actual leave-duration rules.
+- Broad leave-duration searches apply a light regulation-diversity pass so one regulation does not dominate all visible candidates.
+- If more local candidates exist than the visible candidate limit, the ask screen explains that the answer is based on the visible top candidates and suggests narrowing the scope or increasing the candidate limit.
+- Gemini prompt instructions now distinguish app-internal `ARTICLE_ID` values from real article numbers and require regulation name plus actual article number in the answer.
+- Answer validation now flags suspicious citations such as using a large internal ID as `제12345조`.
+- Generated answers include warnings when only part of the selected candidate list is sent to the AI because of the configured maximum.
 
 ## 0.8.2 validation notes
 

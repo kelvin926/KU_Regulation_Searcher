@@ -1,7 +1,7 @@
 export const APP_NAME = "KU Regulation Searcher";
 export const APP_DATA_FOLDER_NAME = "KU Regulation Searcher";
 export const LEGACY_APP_DATA_FOLDER_NAME = "KU Regulation Assistant";
-export const APP_VERSION = "0.8.2";
+export const APP_VERSION = "0.8.3";
 
 export const KOREA_POLICY_ORIGIN = "https://policies.korea.ac.kr";
 export const KOREA_POLICY_MAIN_URL = `${KOREA_POLICY_ORIGIN}/lmxsrv/main/main.do`;
