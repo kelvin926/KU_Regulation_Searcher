@@ -145,12 +145,13 @@ export function AiSettingsPage() {
               min={MIN_RAG_ARTICLES}
               max={HARD_MAX_RAG_ARTICLES}
               value={candidateDraft.searchCandidateLimit}
-              onChange={(event) =>
+              onChange={(event) => {
+                const value = event.currentTarget.value;
                 setCandidateDraft((previous) => ({
                   ...previous,
-                  searchCandidateLimit: event.currentTarget.value,
-                }))
-              }
+                  searchCandidateLimit: value,
+                }));
+              }}
             />
           </label>
           <label className="field">
@@ -160,12 +161,13 @@ export function AiSettingsPage() {
               min={MIN_RAG_ARTICLES}
               max={HARD_MAX_RAG_ARTICLES}
               value={candidateDraft.maxCandidateLimit}
-              onChange={(event) =>
+              onChange={(event) => {
+                const value = event.currentTarget.value;
                 setCandidateDraft((previous) => ({
                   ...previous,
-                  maxCandidateLimit: event.currentTarget.value,
-                }))
-              }
+                  maxCandidateLimit: value,
+                }));
+              }}
             />
           </label>
         </div>
