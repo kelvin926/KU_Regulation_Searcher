@@ -14,6 +14,60 @@ describe("search quality reranking", () => {
     expect(expanded.removedStopWords).toEqual(expect.arrayContaining(["학부생", "진행"]));
   });
 
+  it("infers undergraduate scope from department student questions", () => {
+    const expanded = expandQuery("미래모빌리티학과 학생은 몇학기 휴학이 가능한가요?");
+    const result = rankArticlesForQuestion(
+      [
+        createArticle(1, "학사운영 규정", "제23조", "휴학의 신청·허가 및 기간", "휴학기간은 통산 4년(8학기)을 초과할 수 없다."),
+        createArticle(2, "대학원학칙 일반대학원 시행세칙", "제17조", "휴학기간", "휴학연한은 석사과정 2년, 박사과정 3년으로 한다."),
+        createArticle(3, "세종캠퍼스 창업 휴학 운영 지침", "제3조", "창업 휴학 기간", "창업 휴학은 최대 2년까지 가능하다."),
+        createArticle(4, "대학원학칙 경영전문대학원 시행세칙", "제21조", "휴학기간", "전문석사학위 과정의 휴학기간은 통산 1년이다."),
+        createArticle(5, "의과대학 학사운영 시행세칙", "제4조", "휴학", "의예과는 통산 3학기, 의학과는 통산 6학기까지 휴학할 수 있다."),
+      ],
+      "미래모빌리티학과 학생은 몇학기 휴학이 가능한가요?",
+      expanded,
+      5,
+    );
+
+    expect(expanded.queryIntent.scope).toBe("학부");
+    expect(result.articles[0].id).toBe(1);
+    expect(result.articles[0].relevance?.group).toBe("primary");
+    expect(result.articles.find((article) => article.id === 2)?.relevance?.group).toBe("out_of_scope");
+    expect(result.articles.find((article) => article.id === 3)?.relevance?.group).not.toBe("primary");
+    expect(result.articles.find((article) => article.id === 4)?.relevance?.group).toBe("out_of_scope");
+    expect(result.articles.find((article) => article.id === 5)?.relevance?.group).toBe("out_of_scope");
+  });
+
+  it("does not add generic procedure hints without a known regulation topic", () => {
+    const expanded = expandQuery("외계인이 침공하면 어떻게 해야하나요?");
+
+    expect(expanded.intent).toBe("procedure");
+    expect(expanded.keywords).toEqual(expect.arrayContaining(["외계인", "침공"]));
+    expect(expanded.keywords).not.toEqual(expect.arrayContaining(["신청", "제출", "기간", "서류", "원서", "승인", "접수기간"]));
+  });
+
+  it("treats graduate-student withdrawal as a graduate academic procedure", () => {
+    const expanded = expandQuery("대학원생의 자퇴 방법은?");
+    const result = rankArticlesForQuestion(
+      [
+        createArticle(1, "대학원학칙 일반대학원 시행세칙", "제19조", "자퇴", "자퇴를 하려는 자는 자퇴원을 제출하여야 한다."),
+        createArticle(2, "대학원학칙", "제14조", "자퇴", "자퇴를 원하는 학생에 대해서는 제적을 허가할 수 있다."),
+        createArticle(3, "고려대학교 BK21 FOUR", "제13조", "참여대학원생에 대한 지원", "지원을 받은 대학원생은 휴학이나 자퇴 등으로 자격 요건에 변동이 있으면 지원액을 반환하여야 한다."),
+        createArticle(4, "경영대학 고경(면학)장학금 지급 내규", "제3조", "신청기간 및 신청서류", "장학금을 신청하려는 자는 서류를 제출하여야 한다."),
+      ],
+      "대학원생의 자퇴 방법은?",
+      expanded,
+      4,
+    );
+
+    expect(expanded.keywords).toEqual(expect.arrayContaining(["대학원", "자퇴", "자퇴원"]));
+    expect(expanded.requiredTerms).toEqual(expect.arrayContaining(["대학원", "자퇴"]));
+    expect(result.articles.slice(0, 2).map((article) => article.id)).toEqual([1, 2]);
+    expect(result.articles[0].relevance?.group).toBe("primary");
+    expect(result.articles.find((article) => article.id === 3)?.relevance?.group).not.toBe("primary");
+    expect(result.articles.find((article) => article.id === 4)?.relevance?.group).toBe("low_relevance");
+  });
+
   it("keeps procedure questions focused on the procedure topic", () => {
     const result = rankArticlesForQuestion(
       [
@@ -76,6 +130,56 @@ describe("search quality reranking", () => {
     expect(result.articles.find((article) => article.id === 4)?.relevance?.group).not.toBe("primary");
   });
 
+  it("prioritizes first-semester undergraduate military leave eligibility rules", () => {
+    const query = "학부생이 입학하자마자 군휴학 할 수 있나?";
+    const expanded = expandQuery(query);
+    const result = rankArticlesForQuestion(
+      [
+        createArticle(
+          1,
+          "학사운영 규정",
+          "제29조",
+          "군입대 휴학",
+          "군입대를 하려는 학생은 입영일 전에 입영통지서를 첨부하여 군입대 휴학원을 제출하여야 한다.",
+        ),
+        createArticle(
+          2,
+          "학사운영 규정",
+          "제30조",
+          "휴학의 제한",
+          "신입생, 편입학생, 재입학생은 임신·출산·육아, 질병, 군입대 또는 재난·감염병 휴학 외의 사유로는 입학 후 첫 학기에 휴학을 할 수 없다.",
+        ),
+        createArticle(
+          3,
+          "학사운영 규정",
+          "제24조",
+          "휴학의 분류",
+          "특별휴학의 종류에는 군입대 휴학이 포함되며 군복무로 인한 휴학은 의무복무기간에 한한다.",
+        ),
+        createArticle(
+          4,
+          "학사운영 규정",
+          "제56조",
+          "졸업의 기본요건",
+          "휴학 중에는 졸업요건을 충족하더라도 졸업할 수 없다.",
+        ),
+      ],
+      query,
+      expanded,
+      4,
+    );
+
+    expect(expanded.intent).toBe("eligibility");
+    expect(expanded.queryIntent.scope).toBe("학부");
+    expect(expanded.keywords).toEqual(expect.arrayContaining(["학부", "군입대", "군입대휴학", "휴학", "신입생", "휴학의제한"]));
+    expect(expanded.requiredTerms).toContain("군입대");
+    expect(expanded.requiredTerms).not.toEqual(expect.arrayContaining(["군휴학", "입학하자마자", "있나"]));
+    expect(result.articles.slice(0, 2).map((article) => article.id)).toEqual(expect.arrayContaining([1, 2]));
+    expect(result.articles.find((article) => article.id === 1)?.relevance?.group).toBe("primary");
+    expect(result.articles.find((article) => article.id === 2)?.relevance?.group).toBe("primary");
+    expect(result.articles.find((article) => article.id === 4)?.relevance?.group).toBe("low_relevance");
+  });
+
   it("prioritizes scoped regulation-name questions over broad topic matches", () => {
     const result = rankArticlesForQuestion(
       [
@@ -135,15 +239,17 @@ describe("search quality reranking", () => {
         createArticle(2, "대학원학칙 일반대학원 시행세칙", "제17조", "휴학기간", "휴학연한은 석사과정 2년, 박사과정 및 석·박사통합과정 3년으로 한다."),
         createArticle(3, "대학원학칙 창업경영대학원 시행세칙", "제8조", "휴학기간", "휴학은 학기 또는 1년 단위로 할 수 있으며 통산 휴학기간은 4학기로 한다."),
         createArticle(4, "법학전문대학원 운영 규정", "제11조", "휴학의 신청, 휴학기간", "석사과정 학생의 휴학기간은 통산 2년을 넘을 수 없다."),
+        createArticle(5, "창업휴학 운영지침", "제3조", "창업휴학 기간", "창업휴학의 기본 허용 기간은 3년(6학기)으로 한다."),
       ],
       "일반휴학은 얼마나 가능한가요?",
       expandQuery("일반휴학은 얼마나 가능한가요?"),
-      4,
+      5,
     );
 
     expect(result.articles.slice(0, 2).map((article) => article.id)).toEqual(expect.arrayContaining([1, 2]));
     expect(result.articles.find((article) => article.id === 3)?.relevance?.group).not.toBe("primary");
     expect(result.articles.find((article) => article.id === 4)?.relevance?.group).not.toBe("primary");
+    expect(result.articles.find((article) => article.id === 5)?.relevance?.group).not.toBe("primary");
   });
 });
 

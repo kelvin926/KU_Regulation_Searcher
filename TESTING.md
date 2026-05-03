@@ -10,7 +10,7 @@ Branch: `main`
 | Check | Result |
 | --- | --- |
 | `npm install` | Passed |
-| `npm test` | Passed, 11 files / 42 tests |
+| `npm test` | Passed, 11 files / 46 tests |
 | `npm run build` | Passed |
 | `npm run rebuild:electron` | Passed |
 | `npm run dist:win` | Passed |
@@ -21,9 +21,9 @@ Branch: `main`
 
 | Check | Result |
 | --- | --- |
-| Installer file | `release\KU-Regulation-Setup-0.8.5.exe` |
-| Installer size | 179,136,751 bytes, about 170.8 MiB |
-| SHA-256 | `691AD1139F1FB5AA672849E30FA6208EC95AC43EB6F1C3E388DC0799002ED2D3` |
+| Installer file | `release\KU-Regulation-Setup-0.8.6.exe` |
+| Installer size | 179,137,713 bytes, about 170.8 MiB |
+| SHA-256 | `F5806B6A852B5A4DBB610CD35D56B2D54A4579BEB47572675BB4E934F50DF6A3` |
 | Install type | Per-user NSIS install |
 | Admin permission | Not required in silent install validation |
 | Install/update success | Passed, exit code 0 |
@@ -35,7 +35,7 @@ Branch: `main`
 | Installer icon | Verified by extracting the associated icon from the setup exe |
 | Packaged exe icon | Verified by extracting the associated icon from `release\win-unpacked\KU Regulation Searcher.exe` |
 | Installed exe icon | Verified by extracting the associated icon from the installed exe |
-| Installed version | `KU Regulation Searcher 0.8.5` in the current-user uninstall registry |
+| Installed version | `KU Regulation Searcher 0.8.6` in the current-user uninstall registry |
 | SmartScreen | Possible because the installer is unsigned |
 
 Note: this PC already had a pre-0.4.0 install under `%LOCALAPPDATA%\Programs\KU Regulation Assistant`. Updating in place keeps that installation folder for compatibility, but the visible app name, exe name, window title, shortcut name, and icon are `KU Regulation Searcher`. Fresh per-user installs use the current product name.
@@ -53,6 +53,23 @@ Note: this PC already had a pre-0.4.0 install under `%LOCALAPPDATA%\Programs\KU 
 | Regulation list cache | `%APPDATA%\KU Regulation Searcher\config\regulation-targets.json` exists |
 | Legacy migration | `%APPDATA%\KU Regulation Assistant\` is copied to the new 0.4.0 path when needed |
 | Repo data leakage | No repo-root `data`, `auth`, `logs`, `.env`, sqlite, or encrypted session files were created |
+
+## 0.8.6 validation notes
+
+- 0.8.6 is a search-quality and evidence-selection patch based on the v0.8.5 follow-up checks.
+- Graduate-student withdrawal questions such as `대학원생의 자퇴 방법은?` now prioritize `대학원학칙 일반대학원 시행세칙 제19조 자퇴`, `대학원학칙 제14조 자퇴`, and relevant graduate-school 자퇴 provisions instead of BK21 funding side rules.
+- First-semester military-leave questions such as `학부생이 입학하자마자 군휴학 할 수 있나?` now normalize `군휴학` and `입학하자마자`, then prioritize `학사운영 규정 제30조 휴학의 제한`, `제29조 군입대 휴학`, `제24조 휴학의 분류`, and `제26조 특별휴학의 기간`.
+- Broad leave-duration questions now keep the general undergraduate rule and general graduate-school rules together near the top before specific professional or special graduate-school provisions.
+- Department-name questions that do not explicitly say 대학원 are treated as 학부-scoped by default, so `미래모빌리티학과 학생은 몇학기 휴학이 가능한가요?` no longer answers as if every graduate-school rule directly applied.
+- Generic procedure words are added only when the question has a recognized policy topic. Out-of-domain questions such as `외계인이 침공하면 어떻게 해야하나요?` no longer expand into `신청`, `제출`, `승인` and now return no relevant articles.
+- The ask screen now gives a clearer no-evidence warning when only low-relevance keyword matches exist.
+- AI settings and README model descriptions now present Gemini 3.1 Flash Lite as the default practical choice and Gemma 4 31B as a comparison or fallback model, without overstating unverifiable model differences.
+- Representative full local DB checks:
+  - `대학원생의 자퇴 방법은?`: `대학원학칙 일반대학원 시행세칙 제19조 자퇴` ranked first; BK21 장학금 side rules were not selected as direct evidence.
+  - `학부생이 입학하자마자 군휴학 할 수 있나?`: `학사운영 규정 제30조 휴학의 제한` and `제29조 군입대 휴학` ranked first and second.
+  - `일반 휴학은 몇학기 가능한가요?`: `학사운영 규정 제23조`, `제25조`, `대학원학칙 일반대학원 시행세칙 제17조`, and `제16조의2` ranked before specific graduate-school rules.
+  - `고려대학교 학생이 우주선을 대여할 수 있나요?`: only low-relevance keyword matches were shown, with no AI evidence selected by default.
+  - `외계인이 침공하면 어떻게 해야하나요?`: returned `NO_RELEVANT_ARTICLES`.
 
 ## 0.8.5 validation notes
 

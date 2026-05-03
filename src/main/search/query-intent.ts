@@ -55,6 +55,7 @@ const TOPIC_TERMS = [
   "입영",
   "복학",
   "재입학",
+  "자퇴",
   "졸업",
   "수료",
   "장학금",
@@ -81,6 +82,7 @@ const TOPIC_TERMS = [
 ] as const;
 
 const PROCEDURE_HINTS = ["신청", "제출", "기간", "서류", "원서", "승인", "접수기간"] as const;
+const EXPLICIT_GRADUATE_SCOPE = /(대학원|석사|박사|전문석사|전문박사|수료연구생|수료연구등록)/u;
 
 export function parseQueryIntent(input: string): ParsedQueryIntent {
   const compactQuery = compact(input);
@@ -127,6 +129,7 @@ function detectScope(compactQuery: string): QueryScope {
   if (compactQuery.includes("특수대학원")) return "특수대학원";
   if (compactQuery.includes("세종캠퍼스") || compactQuery.includes("세종")) return "세종캠퍼스";
   if (compactQuery.includes("학부생") || compactQuery.includes("학부")) return "학부";
+  if (/(학과|전공)/u.test(compactQuery) && !EXPLICIT_GRADUATE_SCOPE.test(compactQuery)) return "학부";
   if (compactQuery.includes("조교")) return "조교";
   if (compactQuery.includes("교원")) return "교원";
   if (compactQuery.includes("직원")) return "직원";
@@ -182,6 +185,10 @@ function detectProcedureHints(compactQuery: string, topics: string[]): string[] 
   const hints = new Set<string>(PROCEDURE_HINTS);
   if (topics.includes("복학")) hints.add("복학원");
   if (topics.includes("휴학")) hints.add("휴학원");
+  if (topics.includes("자퇴")) {
+    hints.add("자퇴원");
+    hints.add("허가");
+  }
   if (compactQuery.includes("군") || topics.includes("군입대")) {
     hints.add("증명서");
     hints.add("입영통지서");

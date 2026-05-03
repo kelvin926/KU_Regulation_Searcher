@@ -11,6 +11,7 @@ const SYNONYM_GROUPS = [
   ["질병휴학", "질병으로인한휴학"],
   ["복학", "복학신청"],
   ["재입학", "재입학신청"],
+  ["자퇴", "자퇴원", "퇴학", "제적"],
   ["졸업", "학위수여"],
   ["수료", "과정수료"],
   ["장학금", "장학"],
@@ -63,9 +64,18 @@ const STOP_WORDS = new Set([
   "진행",
   "진행해야",
   "해야",
+  "해야하나요",
+  "해야하나",
+  "있나",
+  "있냐",
   "하는",
   "하려면",
   "하려면요",
+  "할수있나",
+  "할수있나요",
+  "수있나",
+  "수있나요",
+  "입학하자마자",
   "신청하는",
   "알려",
   "답변",
@@ -166,7 +176,14 @@ export function expandQuery(input: string): ExpandedQuery {
     }
   }
 
-  if (queryIntent.intent === "procedure") {
+  if (queryIntent.topics.includes("휴학") && /(입학하자마자|입학후첫학기|첫학기|신입생)/u.test(compactInput)) {
+    for (const keyword of ["신입생", "입학후첫학기", "첫학기", "휴학의제한", "휴학제한"]) {
+      addSearchKeyword(keywords, keyword);
+      addOptionalTerm(optionalTerms, keyword);
+    }
+  }
+
+  if (queryIntent.intent === "procedure" && queryIntent.topics.length > 0) {
     for (const keyword of queryIntent.procedureHints) {
       addSearchKeyword(keywords, keyword);
       addOptionalTerm(optionalTerms, keyword);
@@ -203,7 +220,10 @@ function tokenize(input: string): string[] {
 }
 
 function normalizeToken(token: string): string {
-  return stripVerbEnding(stripKoreanParticle(token));
+  const normalized = stripVerbEnding(stripKoreanParticle(token));
+  if (normalized === "대학원생") return "대학원";
+  if (["군휴학", "입대휴학", "군입대휴학"].includes(normalized)) return "군입대";
+  return normalized;
 }
 
 function stripKoreanParticle(token: string): string {
