@@ -70,6 +70,14 @@ const TOPIC_TERMS = [
   "수강",
   "교과목",
   "교원",
+  "교수",
+  "신임교원",
+  "신임교수",
+  "책임수업시간",
+  "영어강의",
+  "외국어강의",
+  "총학생회",
+  "학생자치",
   "직원",
   "조교",
   "성적",
@@ -132,7 +140,7 @@ function detectScope(compactQuery: string): QueryScope {
     return "학부";
   }
   if (compactQuery.includes("조교")) return "조교";
-  if (compactQuery.includes("교원")) return "교원";
+  if (compactQuery.includes("교원") || compactQuery.includes("교수")) return "교원";
   if (compactQuery.includes("직원")) return "직원";
   if (/(학과|전공)/u.test(compactQuery) && !EXPLICIT_GRADUATE_SCOPE.test(compactQuery)) return "학부";
   if (compactQuery.includes("학생")) return "학생";
@@ -152,6 +160,17 @@ function detectTopics(compactQuery: string): string[] {
     topics.add("군입대");
     topics.add("군입대휴학");
     topics.add("휴학");
+  }
+  if (/(영강|영어강의|외국어강의|외국어강좌)/u.test(compactQuery)) {
+    topics.add("영어강의");
+    topics.add("외국어강의");
+  }
+  if (/(신임교수|신임교원)/u.test(compactQuery)) {
+    topics.add("신임교원");
+  }
+  if (compactQuery.includes("총학생회") || compactQuery.includes("학생자치")) {
+    topics.add("총학생회");
+    topics.add("학생자치");
   }
   return Array.from(topics);
 }

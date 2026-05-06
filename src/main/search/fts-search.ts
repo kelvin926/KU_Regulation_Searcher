@@ -9,11 +9,13 @@ import type { DatabaseService } from "../db/database";
 import { normalizeArticleNo } from "../crawler/regulation-parser";
 import { rankArticlesForQuestion } from "./article-ranker";
 import { expandQuery } from "./query-expander";
+import { createSearchQueryPlan, mergeExpandedQueries } from "./query-planner";
 import { parseSearchOperators } from "./search-operators";
 
 const RERANK_POOL_MULTIPLIER = 5;
 const MIN_RERANK_POOL_SIZE = 150;
 const MAX_RERANK_POOL_SIZE = 300;
+const MAX_COMPOUND_RERANK_POOL_SIZE = 900;
 const DIRECT_REGULATION_POOL_SIZE = 800;
 
 export class SearchService {
@@ -26,8 +28,8 @@ export class SearchService {
     }
 
     const safeLimit = clampSearchCandidateLimit(limit);
-    const searchPoolLimit = getRerankPoolLimit(safeLimit);
     const operatorQuery = parseSearchOperators(query);
+    const searchPoolLimit = getRerankPoolLimit(safeLimit, 1);
     if (operatorQuery.hasOperators) {
       const result = this.db.searchArticlesByBooleanQuery(query, searchPoolLimit);
       const ranked = rankArticlesForQuestion(result.articles, query, result.highlightTerms, safeLimit);
@@ -45,47 +47,60 @@ export class SearchService {
       return { articles: [], expandedKeywords: [], errorCode: "NO_RELEVANT_ARTICLES" };
     }
 
+    const plan = createSearchQueryPlan(query);
+    const expandedVariants = plan.variants.map((variant) => expandQuery(variant));
+    const rankingQueryInfo = mergeExpandedQueries(expanded, expandedVariants, plan.isCompound);
+    const plannedPoolLimit = getRerankPoolLimit(safeLimit, plan.variants.length);
     let articles: ArticleRecord[] = [];
-    for (const directRegulationName of extractDirectRegulationNames(query)) {
+
+    for (let index = 0; index < plan.variants.length; index += 1) {
+      const variant = plan.variants[index];
+      const variantExpanded = expandedVariants[index];
+      const poolLimit = index === 0 ? plannedPoolLimit : Math.max(MIN_RERANK_POOL_SIZE, Math.floor(plannedPoolLimit / 2));
+
+      for (const directRegulationName of extractDirectRegulationNames(variant)) {
+        articles = [
+          ...articles,
+          ...this.db.searchArticlesByCompactRegulationName(
+            directRegulationName,
+            Math.max(poolLimit, DIRECT_REGULATION_POOL_SIZE),
+          ),
+        ];
+      }
+
+      if (variantExpanded.intent === "regulation_lookup" || /\s*(규정|세칙|내규|학칙|지침|회칙)\b/u.test(variant)) {
+        articles = [
+          ...articles,
+          ...this.db.searchArticlesByRegulationNameTerms(
+            [...variantExpanded.scopeKeywords, ...variantExpanded.coreKeywords].slice(0, 4),
+            poolLimit,
+          ),
+        ];
+      }
+
       articles = [
         ...articles,
-        ...this.db.searchArticlesByCompactRegulationName(
-          directRegulationName,
-          Math.max(searchPoolLimit, DIRECT_REGULATION_POOL_SIZE),
-        ),
+        ...this.db.searchArticlesByRequiredTerms(variantExpanded.requiredTerms, variantExpanded.optionalTerms, poolLimit),
       ];
-    }
-
-    if (expanded.intent === "regulation_lookup") {
-      articles = [...articles, ...this.db.searchArticlesByRegulationNameTerms(
-        [...expanded.scopeKeywords, ...expanded.coreKeywords].slice(0, 4),
-        searchPoolLimit,
-      )];
-    }
-
-    articles = [...articles, ...this.db.searchArticlesByRequiredTerms(
-      expanded.requiredTerms,
-      expanded.optionalTerms,
-      searchPoolLimit,
-    )];
-    try {
-      if (articles.length < safeLimit) {
-        articles = [...articles, ...this.db.searchArticlesByFts(expanded.ftsQuery, searchPoolLimit)];
+      try {
+        articles = [...articles, ...this.db.searchArticlesByFts(variantExpanded.ftsQuery, poolLimit)];
+      } catch {
+        articles = [...articles, ...this.db.searchArticlesByLike(variantExpanded.keywords, poolLimit)];
       }
-    } catch {
-      if (articles.length < safeLimit) {
-        articles = [...articles, ...this.db.searchArticlesByLike(expanded.keywords, searchPoolLimit)];
+
+      if (plan.isCompound) {
+        articles = [...articles, ...this.db.searchArticlesByLike(variantExpanded.keywords.slice(0, 12), poolLimit)];
       }
     }
 
     if (articles.length === 0) {
-      articles = this.db.searchArticlesByLike(expanded.keywords, searchPoolLimit);
+      articles = this.db.searchArticlesByLike(rankingQueryInfo.keywords, plannedPoolLimit);
     }
 
-    const ranked = rankArticlesForQuestion(articles, query, expanded, safeLimit);
+    const ranked = rankArticlesForQuestion(articles, query, rankingQueryInfo, safeLimit);
     return {
       articles: ranked.articles,
-      expandedKeywords: expanded.keywords,
+      expandedKeywords: rankingQueryInfo.keywords.slice(0, 32),
       errorCode: articles.length === 0 ? "NO_RELEVANT_ARTICLES" : undefined,
       candidateLimitReached: ranked.candidateLimitReached,
       searchedCandidateCount: ranked.searchedCandidateCount,
@@ -174,6 +189,8 @@ function clampAiCandidateLimit(value: number): number {
   return Math.min(Math.max(Math.round(value), MIN_RAG_ARTICLES), HARD_MAX_RAG_ARTICLES);
 }
 
-function getRerankPoolLimit(limit: number): number {
-  return Math.min(Math.max(limit * RERANK_POOL_MULTIPLIER, MIN_RERANK_POOL_SIZE), MAX_RERANK_POOL_SIZE);
+function getRerankPoolLimit(limit: number, variantCount: number): number {
+  const baseLimit = Math.min(Math.max(limit * RERANK_POOL_MULTIPLIER, MIN_RERANK_POOL_SIZE), MAX_RERANK_POOL_SIZE);
+  if (variantCount <= 1) return baseLimit;
+  return Math.min(baseLimit + (variantCount - 1) * 90, MAX_COMPOUND_RERANK_POOL_SIZE);
 }

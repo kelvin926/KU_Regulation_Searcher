@@ -168,6 +168,12 @@ function scoreByIntent(article: ArticleRecord, context: RankingContext): number 
   const topicTerms = context.queryIntent.topics.map(compact);
   const isMilitaryLeaveQuestion =
     topicTerms.includes("군입대") || /(군입대|군복무|군휴학|입대휴학|입영|소집|병역)/u.test(context.queryCompact);
+  const isMilitaryLeaveTransitionQuestion =
+    isMilitaryLeaveQuestion && /(일반휴학|전환|변경|취소|연기|소멸|냈다가|바꾸|돌리)/u.test(context.queryCompact);
+  const isEnglishLectureQuestion =
+    topicTerms.includes("영어강의") || topicTerms.includes("외국어강의") || /(영강|영어강의|외국어강의|외국어강좌)/u.test(context.queryCompact);
+  const isStudentCouncilQuestion =
+    topicTerms.includes("총학생회") || /(총학생회|학생자치|학생회칙)/u.test(context.queryCompact);
   const isFirstSemesterLeaveQuestion =
     context.queryIntent.topics.includes("휴학") && /(입학하자마자|입학후첫학기|첫학기|신입생)/u.test(context.queryCompact);
   let score = 0;
@@ -195,6 +201,15 @@ function scoreByIntent(article: ArticleRecord, context: RankingContext): number 
       if (title.includes("군입대휴학") || title.includes("군입대")) score += 140;
       if (body.includes("입영통지서") || body.includes("소집통지서")) score += 70;
       if (body.includes("군입대휴학원")) score += 45;
+      if (isMilitaryLeaveTransitionQuestion) {
+        if (/(입영.*소집.*취소|사유.*소멸|신청.*취소)/u.test(body)) score += 180;
+        if (title.includes("휴학의분류")) score += 125;
+        if (title.includes("특별휴학의기간")) score += 95;
+        if (title.includes("휴학의신청") || title.includes("휴학의신청허가")) score += 70;
+        if (title.includes("일반휴학기간의연장")) score += 35;
+        if (/(수강신청|학점|성적|시험|불응시|졸업)/u.test(title)) score -= 260;
+        if (regulationName.includes("창업휴학") || title.includes("창업휴학")) score -= 300;
+      }
       if (!context.queryCompact.includes("복학") && title.includes("복학")) score -= 500;
       if (!/(시험|불응시|중간고사|기말고사)/u.test(context.queryCompact) && title.includes("불응시")) score -= 500;
       if (!/(군입대|군복무|군휴학|입대휴학|입영|소집|병역)/u.test(`${title} ${body}`)) score -= 120;
@@ -300,6 +315,40 @@ function scoreByIntent(article: ArticleRecord, context: RankingContext): number 
 
   if (context.queryIntent.intent === "definition") {
     if (/정의|용어의정의/u.test(title)) score += 70;
+  }
+
+  if (isEnglishLectureQuestion) {
+    const hasEnglishLectureEvidence = /(영어강의|외국어강의|외국어강좌|영강)/u.test(`${regulationName} ${title} ${body}`);
+    if (regulationName.includes("외국어강의")) score += 180;
+    if (title.includes("외국어강의") || title.includes("영어강의")) score += 90;
+    if (body.includes("영어강의") || body.includes("외국어강의")) score += 55;
+    if (regulationName.includes("신임교원") && regulationName.includes("책임수업시간")) score += 135;
+    if (title.includes("감면교과목") || body.includes("감면교과목")) score += 70;
+    if (body.includes("영어강의로개설") || body.includes("외국어강의비율")) score += 100;
+    if (!hasEnglishLectureEvidence) score -= 230;
+    if (title.includes("제출서류") || title.includes("신청")) score -= 170;
+    if (/(bk21|장학금|등록금|대관|학생|수료|자퇴|휴학)/iu.test(`${regulationName} ${title}`)) score -= 75;
+  }
+
+  if (isStudentCouncilQuestion) {
+    if (regulationName.includes("총학생회칙")) score += 240;
+    if (body.includes("안암총학생회") || body.includes("안암캠퍼스") || title.includes("명칭") || title.includes("소재지")) {
+      score += 100;
+    }
+    if (regulationName.includes("고려대학교학칙") && title.includes("학생자치활동")) score += 180;
+    if (regulationName.includes("대학원학칙일반대학원시행세칙") && title.includes("대학원총학생회")) score += 150;
+    if (regulationName.includes("세종캠퍼스") && body.includes("총학생회")) score += 135;
+    if (
+      regulationName.includes("세종캠퍼스사무분장규정") &&
+      (title.includes("학생생활지원팀") || body.includes("일반대학원총학생회") || body.includes("학생회지원"))
+    ) {
+      score += 240;
+    }
+    if (title.includes("학생지원팀") || title.includes("학생생활지원팀")) score += 60;
+    if (regulationName.includes("위원회") && /(구성|임기)/u.test(title)) score -= 110;
+    if (/(장학금|대관|군사교육|bk21|입학|수강신청)/iu.test(`${regulationName} ${title}`) && !title.includes("총학생회")) {
+      score -= 80;
+    }
   }
 
   return score;
@@ -455,10 +504,22 @@ function classifyArticle(
   const directlyAskedRegulation = isDirectRegulationAsked(regulationName, context);
   if (outOfScope && !directlyAskedRegulation) return "out_of_scope";
   const directEvidenceMatch = hasDirectEvidenceMatch(regulationName, title, context);
+  const isEnglishLectureQuery = /(영강|영어강의|외국어강의|외국어강좌)/u.test(context.queryCompact);
+  const hasEnglishLectureEvidence = /(영어강의|외국어강의|외국어강좌|영강)/u.test(all);
+  const isStudentCouncilQuery = /(총학생회|학생자치|학생회칙)/u.test(context.queryCompact);
+  const hasStudentCouncilEvidence = /(총학생회|학생자치|학생회)/u.test(all);
   if (directEvidenceMatch && score >= 20) return "primary";
   if (directEvidenceMatch) return "related";
-  if (missingRequired && context.queryIntent.intent !== "article_lookup" && !directEvidenceMatch) return "low_relevance";
-  if (!hasAnyTopicMatch(all, context) && context.queryIntent.articleNos.length === 0 && !directEvidenceMatch) {
+  if (isEnglishLectureQuery && !hasEnglishLectureEvidence) return "low_relevance";
+  if (missingRequired && context.queryIntent.intent !== "article_lookup" && !directEvidenceMatch && score < 135) {
+    return "low_relevance";
+  }
+  if (
+    !hasAnyTopicMatch(all, context) &&
+    !(isStudentCouncilQuery && hasStudentCouncilEvidence) &&
+    context.queryIntent.articleNos.length === 0 &&
+    !directEvidenceMatch
+  ) {
     return "low_relevance";
   }
   if (
@@ -604,6 +665,7 @@ function pickDiverseArticles(scored: ScoreResult[], limit: number, context: Rank
 function shouldUseDiversity(context: RankingContext): boolean {
   if (context.queryIntent.intent === "article_lookup") return false;
   if (context.queryIntent.scope !== "unknown" && context.queryIntent.intent === "regulation_lookup") return false;
+  if (/(총학생회|학생자치|학생회칙|차이|비교|영강|영어강의|외국어강의)/u.test(context.queryCompact)) return true;
   return context.queryIntent.scope === "unknown" || context.queryIntent.intent === "duration";
 }
 

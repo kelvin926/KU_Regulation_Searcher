@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { ArticleRecord } from "../../shared/types";
 import { rankArticlesForQuestion } from "./article-ranker";
 import { expandQuery } from "./query-expander";
+import { createSearchQueryPlan, mergeExpandedQueries } from "./query-planner";
 
 describe("search quality reranking", () => {
   it("normalizes undergraduate military leave questions", () => {
@@ -306,6 +307,103 @@ describe("search quality reranking", () => {
     expect(new Set(regulationNames).size).toBeGreaterThan(1);
   });
 
+  it("keeps military leave cancellation and ordinary leave rules for transition scenarios", () => {
+    const query = "미래모빌리티학과 학생이 군휴학을 냈다가 일반 휴학으로 전환하고 싶대. 어떻게 해야하지?";
+    const result = rankWithSearchPlan(
+      [
+        createArticle(
+          1,
+          "학사운영 규정",
+          "제29조",
+          "군입대 휴학",
+          "입영(소집)취소 또는 연기 등으로 군입대 사유가 소멸된 때에는 7일 이내에 소속 대학(학부) 행정업무 지원부서에 군입대 휴학 신청을 취소하여야 한다.",
+        ),
+        createArticle(
+          2,
+          "학사운영 규정",
+          "제24조",
+          "휴학의 분류",
+          "휴학은 일반휴학과 특별휴학으로 분류하며 군입대 휴학은 특별휴학에 해당한다.",
+        ),
+        createArticle(
+          3,
+          "학사운영 규정",
+          "제26조",
+          "특별휴학의 기간",
+          "군입대 휴학은 의무복무기간에 한하며 학생의 의사에 의한 복무기간 연장은 일반휴학에 해당한다.",
+        ),
+        createArticle(
+          4,
+          "학사운영 규정",
+          "제23조",
+          "휴학의 신청·허가 및 기간",
+          "학생이 휴학하고자 할 때에는 소정의 절차에 따라 신청하여 총장의 허가를 얻어야 한다.",
+        ),
+        createArticle(5, "일반 Tutorial 운영 지침", "제6조", "신청 및 승인 절차", "Tutorial 신청서와 회의록을 제출한다."),
+      ],
+      query,
+      5,
+    );
+
+    expect(result.articles.slice(0, 3).map((article) => article.id)).toEqual(expect.arrayContaining([1, 2, 3]));
+    expect(result.articles.find((article) => article.id === 1)?.relevance?.group).toBe("primary");
+    expect(result.articles.find((article) => article.id === 2)?.relevance?.group).toBe("primary");
+    expect(result.articles.find((article) => article.id === 5)?.relevance?.group).toBe("low_relevance");
+  });
+
+  it("plans and ranks student-council comparison questions across campus evidence", () => {
+    const query = "세종 총학생회와 서울 총학생회의 차이를 알려줘";
+    const plan = createSearchQueryPlan(query);
+    const result = rankWithSearchPlan(
+      [
+        createArticle(
+          1,
+          "총학생회칙",
+          "제1조",
+          "【명칭】",
+          "이 회는 고려대학교 안암캠퍼스 학부과정을 기준으로 하여 고려대학교 안암총학생회라 한다.",
+        ),
+        createArticle(2, "총학생회칙", "제3조", "【소재지】", "이 회는 고려대학교 안암캠퍼스에 위치한다."),
+        createArticle(3, "고려대학교 학칙", "제51조", "학생자치활동과 그 지원", "총학생회 등 학생자치단체를 둔다."),
+        createArticle(4, "세종캠퍼스 사무분장 규정", "제21조", "학생생활지원팀", "학생회 지원, 총학생회 지원 및 학생 행사 지원을 담당한다."),
+        createArticle(5, "정책대학원 장학금 지급세칙", "제6조", "특별장학금", "직전학기 본 대학원 총학생회장에게 특별장학금을 지급할 수 있다."),
+      ],
+      query,
+      5,
+    );
+
+    expect(plan.variants).toEqual(expect.arrayContaining(["총학생회칙 안암총학생회 안암캠퍼스 회원 소재지 기구"]));
+    expect(result.articles.slice(0, 4).map((article) => article.id)).toEqual(expect.arrayContaining([1, 2, 3, 4]));
+    expect(result.articles.find((article) => article.id === 1)?.relevance?.group).toBe("primary");
+    expect(result.articles.find((article) => article.id === 4)?.relevance?.group).toBe("primary");
+    expect(result.articles.find((article) => article.id === 5)?.relevance?.group).not.toBe("primary");
+  });
+
+  it("expands 영강 into English and foreign-lecture evidence for new faculty questions", () => {
+    const query = "신임 교수의 영강 의무는 어떻게 되지?";
+    const result = rankWithSearchPlan(
+      [
+        createArticle(1, "외국어강의에 관한 규정", "제2조", "외국어강의의 종류", '"영어강의"란 영어로 이루어지는 강의를 말한다.'),
+        createArticle(2, "외국어강의에 관한 규정", "제3조", "외국어강의 개설에 관한 원칙", "외국어강의는 영어강의를 원칙으로 한다."),
+        createArticle(
+          3,
+          "심리학부 신임교원 책임수업시간 감면 내규",
+          "제6조",
+          "원활한 학사운영을 위한 조치",
+          "심리학부 의무 외국어강의 비율을 미충족할 경우 신임교원 감면 교과목은 영어강의로 개설한다.",
+        ),
+        createArticle(4, "고려대학교 BK21 FOUR", "제11조", "참여대학원생의 의무", "참여대학원생은 기한 내 각종 서류를 제출한다."),
+      ],
+      query,
+      4,
+    );
+
+    expect(expandQuery(query).keywords).toEqual(expect.arrayContaining(["신임교원", "교원", "영어강의", "외국어강의"]));
+    expect(result.articles.slice(0, 3).map((article) => article.id)).toEqual(expect.arrayContaining([1, 2, 3]));
+    expect(result.articles.find((article) => article.id === 3)?.relevance?.group).toBe("primary");
+    expect(result.articles.find((article) => article.id === 4)?.relevance?.group).toBe("low_relevance");
+  });
+
   it("keeps broad leave-duration questions focused on high-authority rules first", () => {
     const result = rankArticlesForQuestion(
       [
@@ -347,4 +445,11 @@ function createArticle(
     source_url: "https://example.test",
     fetched_at: "2026-01-01T00:00:00.000Z",
   };
+}
+
+function rankWithSearchPlan(articles: ArticleRecord[], query: string, limit: number) {
+  const plan = createSearchQueryPlan(query);
+  const base = expandQuery(query);
+  const variants = plan.variants.map((variant) => expandQuery(variant));
+  return rankArticlesForQuestion(articles, query, mergeExpandedQueries(base, variants, plan.isCompound), limit);
 }

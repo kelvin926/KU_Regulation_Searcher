@@ -553,10 +553,11 @@ function pickBodyHint(article) {
   for (const match of body.matchAll(/[가-힣A-Za-z0-9·ㆍ-]{2,16}/gu)) {
     const value = match[0].replace(/[·ㆍ-]+$/u, "").trim();
     const compactValue = compactText(value);
+    const compactWithoutParticle = compactValue.replace(/(에서는|에는|으로는|로는|은|는|이|가|을|를|와|과|의|도|만|에|에서|으로|로)$/u, "");
     if (compactValue.length < 2 || compactValue.length > 16) continue;
     if (BODY_HINT_STOP_WORDS.has(compactValue)) continue;
     if (/^\d+$/u.test(compactValue)) continue;
-    if (/^(제\d+조|별지|별표|항|호)$/u.test(compactValue)) continue;
+    if (/^(제\d+조(?:제\d+항)?|제\d+항|제\d+호|별지|별표|항|호)$/u.test(compactWithoutParticle)) continue;
     if (titleTokens.has(value) && value.length <= 3) continue;
     candidates.push(value);
   }

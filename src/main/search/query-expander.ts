@@ -23,7 +23,10 @@ const SYNONYM_GROUPS = [
   ["학점", "학점인정"],
   ["이수", "수강"],
   ["교과목", "교과"],
-  ["교원", "전임교원", "비전임교원"],
+  ["교원", "교수", "전임교원", "비전임교원"],
+  ["신임교원", "신임교수"],
+  ["영어강의", "영강", "외국어강의", "외국어강좌"],
+  ["총학생회", "총학생회칙", "학생자치", "학생자치단체"],
   ["직원", "행정직원"],
   ["조교", "교육조교", "연구조교"],
   ["성적", "평점"],
@@ -124,6 +127,21 @@ const STOP_WORDS = new Set([
   "해야하나",
   "있나",
   "있냐",
+  "싶대",
+  "냈다",
+  "냈다가",
+  "전환",
+  "전환하고",
+  "변경",
+  "바꾸",
+  "바꾸고",
+  "돌리",
+  "되돌리",
+  "되돌려",
+  "차이",
+  "차이를",
+  "비교",
+  "다른점",
   "하는",
   "하려면",
   "하려면요",
@@ -279,6 +297,9 @@ function normalizeToken(token: string): string {
   const normalized = stripNominalSuffix(stripVerbEnding(stripKoreanParticle(token)));
   if (normalized === "대학원생") return "대학원";
   if (["군휴학", "입대휴학", "군입대휴학"].includes(normalized)) return "군입대";
+  if (normalized === "교수") return "교원";
+  if (normalized === "신임교수") return "신임교원";
+  if (normalized === "영강") return "영어강의";
   return normalized;
 }
 
