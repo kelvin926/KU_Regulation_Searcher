@@ -233,10 +233,19 @@ function scoreByIntent(article: ArticleRecord, context: RankingContext): number 
     if (topicTerms.includes("자퇴")) {
       if (title.includes("자퇴")) score += 90;
       if (body.includes("자퇴원") || body.includes("자퇴신청서")) score += 45;
+      if (!/(자퇴|퇴학|제적)/u.test(`${title} ${body}`)) score -= 260;
       if (isSpecificUnitRule(regulationName) && !directQueryIncludesSpecificUnit(context.queryCompact, regulationName)) {
         score -= 90;
       }
       if (body.includes("장학금") && !context.queryCompact.includes("장학금")) score -= 80;
+    }
+    if (topicTerms.includes("지도교수")) {
+      const isAdvisorChangeQuestion = /(변경|정정|전환|바꾸|교체)/u.test(context.queryCompact);
+      if (title.includes("지도교수변경") || (title.includes("지도교수") && title.includes("변경"))) score += 180;
+      else if (title.includes("지도교수")) score += 95;
+      if (body.includes("지도교수")) score += 35;
+      if (isAdvisorChangeQuestion && !/(변경|정정|교체)/u.test(`${title} ${body}`)) score -= 80;
+      if (!/(지도교수|논문지도교수)/u.test(`${title} ${body}`)) score -= 140;
     }
     if (topicTerms.length > 0 && title.includes("신청") && !topicTerms.some((topic) => title.includes(topic))) {
       score -= 80;
@@ -403,6 +412,17 @@ function scoreScope(article: ArticleRecord, context: RankingContext): { score: n
   }
 
   if (queryScope === "unknown" || queryScope === "학생") return { score, outOfScope, reasons };
+
+  if (
+    queryScope === "일반대학원" &&
+    regulationName.includes("학사운영규정") &&
+    !regulationName.includes("대학원학사운영규정") &&
+    !directQuery.includes("학사운영규정")
+  ) {
+    score -= 90;
+    outOfScope = true;
+    reasons.push("대학원 질문과 다른 학부 학사운영 규정");
+  }
 
   const penalties = scopePenaltyTerms(queryScope);
   for (const item of penalties) {

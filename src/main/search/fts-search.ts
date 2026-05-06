@@ -39,6 +39,7 @@ export class SearchService {
         errorCode: result.articles.length === 0 ? "NO_RELEVANT_ARTICLES" : undefined,
         candidateLimitReached: ranked.candidateLimitReached,
         searchedCandidateCount: ranked.searchedCandidateCount,
+        suggestedQueries: buildSuggestedQueries(query, ranked.articles),
       };
     }
 
@@ -98,12 +99,15 @@ export class SearchService {
     }
 
     const ranked = rankArticlesForQuestion(articles, query, rankingQueryInfo, safeLimit);
+    const suggestedQueries = buildSuggestedQueries(query, ranked.articles, plan.variants);
     return {
       articles: ranked.articles,
       expandedKeywords: rankingQueryInfo.keywords.slice(0, 32),
       errorCode: articles.length === 0 ? "NO_RELEVANT_ARTICLES" : undefined,
       candidateLimitReached: ranked.candidateLimitReached,
       searchedCandidateCount: ranked.searchedCandidateCount,
+      routingNotes: plan.routingNotes,
+      suggestedQueries,
     };
   }
 
@@ -193,4 +197,78 @@ function getRerankPoolLimit(limit: number, variantCount: number): number {
   const baseLimit = Math.min(Math.max(limit * RERANK_POOL_MULTIPLIER, MIN_RERANK_POOL_SIZE), MAX_RERANK_POOL_SIZE);
   if (variantCount <= 1) return baseLimit;
   return Math.min(baseLimit + (variantCount - 1) * 90, MAX_COMPOUND_RERANK_POOL_SIZE);
+}
+
+function buildSuggestedQueries(query: string, articles: ArticleRecord[], routeVariants: string[] = []): string[] {
+  const suggestions = new Set<string>();
+  const compactQuery = query.replace(/\s+/g, "");
+  const hasDefaultEvidence = articles.some((article) => {
+    const group = article.relevance?.group;
+    return group === "primary" || group === "related";
+  });
+
+  const topics = inferSuggestionTopics(compactQuery);
+  for (const topic of topics.slice(0, 3)) {
+    if (/(학부생|학부|학과|전공)/u.test(compactQuery)) {
+      addSuggestion(suggestions, query, `학사운영 규정 ${topic}`);
+    }
+    if (/(대학원생|대학원|석사|박사)/u.test(compactQuery)) {
+      addSuggestion(suggestions, query, `대학원학칙 일반대학원 시행세칙 ${topic}`);
+      addSuggestion(suggestions, query, `대학원학칙 ${topic}`);
+    }
+    if (!/(학부|대학원|교원|직원|조교)/u.test(compactQuery)) {
+      addSuggestion(suggestions, query, `학부 ${topic}`);
+      addSuggestion(suggestions, query, `일반대학원 ${topic}`);
+    }
+  }
+
+  for (const unit of extractSpecificQueryUnits(query).slice(0, 2)) {
+    for (const topic of topics.slice(0, 2)) {
+      addSuggestion(suggestions, query, `${unit} ${topic}`);
+    }
+  }
+
+  if (!hasDefaultEvidence || articles.length === 0) {
+    for (const variant of routeVariants.slice(1, 5)) addSuggestion(suggestions, query, variant);
+  }
+
+  return Array.from(suggestions).slice(0, 5);
+}
+
+function addSuggestion(suggestions: Set<string>, originalQuery: string, suggestion: string): void {
+  const value = suggestion.replace(/\s+/g, " ").trim();
+  if (value.length < 2) return;
+  if (value === originalQuery.replace(/\s+/g, " ").trim()) return;
+  suggestions.add(value);
+}
+
+function inferSuggestionTopics(compactQuery: string): string[] {
+  const topics = new Set<string>();
+  const mappings: Array<[RegExp, string[]]> = [
+    [/(군휴학|군입대|입대휴학|군복무|병역|입영|소집)/u, ["군입대 휴학", "휴학의 제한"]],
+    [/(휴학|일반휴학)/u, ["휴학기간", "일반휴학"]],
+    [/(복학|전역)/u, ["복학"]],
+    [/(자퇴|퇴학|제적)/u, ["자퇴"]],
+    [/(장학금|등록금|수업료|학비|납입금)/u, ["장학금", "등록금"]],
+    [/(영강|영어강의|외국어강의|책임수업시간|강의시수)/u, ["외국어강의", "책임수업시간"]],
+    [/(총학생회|학생자치|학생회칙)/u, ["총학생회", "학생자치활동"]],
+    [/(대관|대여|빌리|공간|시설|강의실|운동장)/u, ["대관", "대여"]],
+    [/(수강신청|수강정정|수강변경)/u, ["수강신청"]],
+    [/(학위청구논문|논문심사|논문제출|지도교수)/u, ["학위청구논문", "지도교수"]],
+  ];
+
+  for (const [regex, values] of mappings) {
+    if (!regex.test(compactQuery)) continue;
+    for (const value of values) topics.add(value);
+  }
+  return Array.from(topics);
+}
+
+function extractSpecificQueryUnits(query: string): string[] {
+  const units = new Set<string>();
+  for (const match of query.matchAll(/[가-힣A-Za-z0-9·ㆍ\-()]+(?:학과|학부|전공|대학원|사업단|센터|연구단|MBA|Track|TRACK)/gu)) {
+    const value = match[0].replace(/\s+/g, " ").trim();
+    if (value.length >= 3) units.add(value);
+  }
+  return Array.from(units);
 }

@@ -59,7 +59,7 @@ describe("query expander", () => {
 
   it("treats condition wording as optional support instead of a strict requirement", () => {
     const expanded = expandQuery("학위청구논문 심사는 어떤 조건이 필요한가요?");
-    expect(expanded.requiredTerms).toEqual(["학위청구논문", "심사"]);
+    expect(expanded.requiredTerms).toEqual(["일반대학원", "학위청구논문", "심사"]);
     expect(expanded.optionalTerms).toContain("요건");
     expect(expanded.optionalTerms).toContain("자격");
     expect(expanded.keywords).not.toContain("조건");

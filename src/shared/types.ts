@@ -138,6 +138,8 @@ export interface AskSearchResult {
   errorCode?: ErrorCode;
   candidateLimitReached?: boolean;
   searchedCandidateCount?: number;
+  routingNotes?: string[];
+  suggestedQueries?: string[];
 }
 
 export interface GenerateAnswerRequest {

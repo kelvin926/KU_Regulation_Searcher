@@ -92,6 +92,18 @@ describe("SearchService RAG candidate limits", () => {
     expect(result.articles[0].id).toBe(1);
     expect(result.articles[0].relevance?.group).toBe("primary");
   });
+
+  it("returns routing diagnostics and retry suggestions when no grounded evidence is found", () => {
+    const service = new SearchService(createMockDatabase({}));
+
+    const result = service.searchForQuestion("대학원생의 자퇴 방법은?", DEFAULT_SEARCH_CANDIDATE_LIMIT);
+
+    expect(result.errorCode).toBe("NO_RELEVANT_ARTICLES");
+    expect(result.routingNotes?.join(" ")).toContain("대학원생 자퇴");
+    expect(result.suggestedQueries).toEqual(
+      expect.arrayContaining(["대학원학칙 일반대학원 시행세칙 자퇴", "대학원학칙 자퇴"]),
+    );
+  });
 });
 
 function createMockDatabase(overrides: {

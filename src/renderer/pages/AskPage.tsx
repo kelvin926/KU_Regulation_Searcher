@@ -48,16 +48,24 @@ export function AskPage() {
         setMessage("[LOCAL_DB_EMPTY] 먼저 규정을 동기화하세요.");
       } else if (result.errorCode === "NO_RELEVANT_ARTICLES") {
         setMessageTone("warning");
-        setMessage("[근거 없음] 관련 조항을 찾지 못했습니다.");
+        setMessage(appendSearchHints("[근거 없음] 관련 조항을 찾지 못했습니다.", result.routingNotes, result.suggestedQueries));
       } else if (result.articles.length > 0 && result.articles.every((article) => !isDefaultAiEvidence(article))) {
         setMessageTone("warning");
         setMessage(
-          "[근거 없음] 직접 적용 가능성이 높은 조항을 찾지 못했습니다. 화면에는 단어가 일부 일치한 낮은 관련도 후보만 표시됩니다.",
+          appendSearchHints(
+            "[근거 없음] 직접 적용 가능성이 높은 조항을 찾지 못했습니다. 화면에는 단어가 일부 일치한 낮은 관련도 후보만 표시됩니다.",
+            result.routingNotes,
+            result.suggestedQueries,
+          ),
         );
       } else if (result.candidateLimitReached) {
         setMessageTone("info");
         setMessage(
-          `관련 조항이 ${result.searchedCandidateCount ?? result.articles.length}개 이상 검색되었습니다. 현재 화면에는 재정렬된 상위 ${result.articles.length}개 후보가 표시되고, AI 답변에는 적용 가능성이 높은 근거 조항만 사용됩니다. 검색 결과가 넓으면 "일반대학원 복학", "일반대학원 장학금", "학사운영 규정 복학"처럼 소속이나 규정명을 함께 입력하세요.`,
+          appendSearchHints(
+            `관련 조항이 ${result.searchedCandidateCount ?? result.articles.length}개 이상 검색되었습니다. 현재 화면에는 재정렬된 상위 ${result.articles.length}개 후보가 표시되고, AI 답변에는 적용 가능성이 높은 근거 조항만 사용됩니다. 검색 결과가 넓으면 "일반대학원 복학", "일반대학원 장학금", "학사운영 규정 복학"처럼 소속이나 규정명을 함께 입력하세요.`,
+            result.routingNotes,
+            result.suggestedQueries,
+          ),
         );
       }
     } catch (error) {
@@ -180,4 +188,13 @@ function pickDefaultAiEvidence(articles: ArticleRecord[], maxCount: number): Art
   const related = articles.filter((article) => article.relevance?.group === "related");
   if (primary.length > 0) return primary.slice(0, maxCount);
   return related.slice(0, maxCount);
+}
+
+function appendSearchHints(base: string, routingNotes?: string[], suggestedQueries?: string[]): string {
+  const notes = (routingNotes ?? []).filter(Boolean);
+  const suggestions = (suggestedQueries ?? []).filter(Boolean);
+  const parts = [base];
+  if (notes.length > 0) parts.push(`검색 분석: ${notes.slice(0, 2).join(" ")}`);
+  if (suggestions.length > 0) parts.push(`재검색 예시: ${suggestions.slice(0, 3).map((query) => `"${query}"`).join(", ")}`);
+  return parts.join("\n");
 }

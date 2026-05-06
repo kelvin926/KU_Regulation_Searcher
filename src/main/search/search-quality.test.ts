@@ -419,6 +419,14 @@ describe("search quality reranking", () => {
     expect(advisor.requiredTerms).not.toContain("변경");
   });
 
+  it("adds generic routed variants for compound natural-language procedures", () => {
+    const plan = createSearchQueryPlan("논문 지도교수를 바꾸려면 어떤 절차가 필요해?");
+
+    expect(plan.routingNotes.join(" ")).toContain("복합 자연어 질문");
+    expect(plan.variants).toEqual(expect.arrayContaining(["일반대학원 지도교수 변경 정정 전환 취소 철회 연기 사유 소멸"]));
+    expect(plan.variants).toEqual(expect.arrayContaining(["일반대학원 지도교수 신청 제출 원서 허가 승인 절차"]));
+  });
+
   it("keeps broad leave-duration questions focused on high-authority rules first", () => {
     const result = rankArticlesForQuestion(
       [

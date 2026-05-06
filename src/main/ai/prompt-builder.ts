@@ -56,9 +56,41 @@ ${compactArticleBody(article.article_body)}`;
 }
 
 function compactArticleBody(value: string): string {
-  return value
+  const normalized = value
     .replace(/\r\n/g, "\n")
     .replace(/[ \t]+/g, " ")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
+
+  return compactLongEvidence(normalized);
+}
+
+function compactLongEvidence(value: string): string {
+  const headSize = 2800;
+  const tailSize = 1200;
+  const minSaved = 1200;
+  if (value.length <= headSize + tailSize + minSaved) return value;
+
+  const head = cutAtSentenceBoundary(value.slice(0, headSize), "head");
+  const tailStart = Math.max(head.length, value.length - tailSize);
+  const tail = cutAtSentenceBoundary(value.slice(tailStart), "tail");
+  const omitted = value.length - head.length - tail.length;
+  if (omitted < minSaved) return value;
+
+  return `${head}\n\n[중략: 긴 조항 본문 ${omitted.toLocaleString()}자 생략. 답변에는 제공된 조항 안에서 확인되는 내용만 사용할 것.]\n\n${tail}`;
+}
+
+function cutAtSentenceBoundary(value: string, direction: "head" | "tail"): string {
+  if (direction === "head") {
+    const boundaries = ["다.\n", "다. ", ".\n", "\n\n"].map((needle) => value.lastIndexOf(needle));
+    const boundary = Math.max(...boundaries);
+    return (boundary > value.length * 0.55 ? value.slice(0, boundary + 2) : value).trimEnd();
+  }
+
+  const candidates = ["\n\n", "다.\n", "다. ", ".\n"]
+    .map((needle) => value.indexOf(needle))
+    .filter((index) => index >= 0 && index < value.length * 0.45)
+    .sort((a, b) => a - b);
+  const boundary = candidates[0];
+  return (boundary !== undefined ? value.slice(boundary + 2) : value).trimStart();
 }
