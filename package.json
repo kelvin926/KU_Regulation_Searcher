@@ -1,6 +1,6 @@
 {
   "name": "ku-regulation-searcher",
-  "version": "0.8.8",
+  "version": "0.8.8-1",
   "description": "고려대학교 규정 로컬 검색 및 Gemini RAG Windows 앱",
   "author": "kelvin926",
   "license": "SEE LICENSE IN README.md",
@@ -75,7 +75,7 @@
           ]
         }
       ],
-      "artifactName": "KU-Regulation-Setup-${version}.${ext}"
+      "artifactName": "KU-Regulation-Setup-0.8.8.1.${ext}"
     },
     "nsis": {
       "installerIcon": "build/icon.ico",

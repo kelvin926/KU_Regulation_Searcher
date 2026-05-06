@@ -61,11 +61,14 @@ const TOPIC_TERMS = [
   "장학금",
   "등록금",
   "수업료",
+  "납입금",
   "등록",
   "징계",
   "제적",
   "경고",
   "학점",
+  "학점인정",
+  "수강신청",
   "이수",
   "수강",
   "교과목",
@@ -78,6 +81,15 @@ const TOPIC_TERMS = [
   "외국어강의",
   "총학생회",
   "학생자치",
+  "대관",
+  "대여",
+  "사용료",
+  "교환학생",
+  "방문학생",
+  "학사학위취득유예",
+  "지도교수",
+  "책임수업시간",
+  "임용",
   "직원",
   "조교",
   "성적",
@@ -164,6 +176,26 @@ function detectTopics(compactQuery: string): string[] {
   if (/(영강|영어강의|외국어강의|외국어강좌)/u.test(compactQuery)) {
     topics.add("영어강의");
     topics.add("외국어강의");
+  }
+  if (/(책임시수|강의시수|수업시수|의무시수|강의의무)/u.test(compactQuery)) {
+    topics.add("책임수업시간");
+  }
+  if (/(학비|등록비|납입금)/u.test(compactQuery)) {
+    topics.add("등록금");
+    topics.add("수업료");
+  }
+  if (/(빌리|빌려|대관|대여|공간|시설사용|장소사용|사용신청)/u.test(compactQuery)) {
+    topics.add("대관");
+    topics.add("대여");
+  }
+  if (/(교환학생|방문학생|SEP|VSP|파견학생)/iu.test(compactQuery)) {
+    topics.add("교환학생");
+  }
+  if (/(졸업유예|학사학위취득유예|학위취득유예)/u.test(compactQuery)) {
+    topics.add("학사학위취득유예");
+  }
+  if (/(지도교수|논문지도교수)/u.test(compactQuery)) {
+    topics.add("지도교수");
   }
   if (/(신임교수|신임교원)/u.test(compactQuery)) {
     topics.add("신임교원");

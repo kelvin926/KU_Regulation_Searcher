@@ -404,6 +404,21 @@ describe("search quality reranking", () => {
     expect(result.articles.find((article) => article.id === 4)?.relevance?.group).toBe("low_relevance");
   });
 
+  it("expands colloquial expressions into KU regulation terms", () => {
+    const facility = expandQuery("강의실을 빌리려면 사용료를 내야 하나요?");
+    const tuition = expandQuery("학비 감면이나 장학금 지급 기준을 알려줘");
+    const teachingLoad = expandQuery("신임교수 강의시수 의무는 어떻게 되나요?");
+    const exchange = expandQuery("방문학생이나 교환학생으로 파견되는 기준은?");
+    const advisor = expandQuery("논문 지도교수를 바꾸려면 어떤 절차가 필요해?");
+
+    expect(facility.keywords).toEqual(expect.arrayContaining(["대여", "대관", "사용", "사용료", "대관료"]));
+    expect(tuition.keywords).toEqual(expect.arrayContaining(["등록금", "수업료", "납입금", "감면", "면제", "장학금"]));
+    expect(teachingLoad.keywords).toEqual(expect.arrayContaining(["신임교원", "교원", "책임수업시간", "강의시수"]));
+    expect(exchange.keywords).toEqual(expect.arrayContaining(["교환학생", "방문학생", "SEP", "VSP", "파견학생"]));
+    expect(advisor.keywords).toEqual(expect.arrayContaining(["지도교수", "논문지도교수", "변경"]));
+    expect(advisor.requiredTerms).not.toContain("변경");
+  });
+
   it("keeps broad leave-duration questions focused on high-authority rules first", () => {
     const result = rankArticlesForQuestion(
       [
