@@ -72,4 +72,37 @@ describe("DatabaseService", () => {
     expect(db.listLatestFailures()).toHaveLength(0);
     expect(db.getStats().articleCount).toBe(1);
   });
+
+  it("stores, updates, deletes custom regulations and refreshes search rows", () => {
+    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "ku-reg-db-"));
+    db = new DatabaseService(path.join(tempDir, "ku-policy.sqlite"));
+
+    const created = db.createCustomRegulation({
+      regulationName: "미래모빌리티학과 운영 내규",
+      customScope: "undergraduate",
+      customNote: "학과 공지",
+      body: "제1조(군휴학 전환)\n군휴학 사유가 소멸된 학생은 일반휴학 전환을 신청한다.",
+    });
+
+    expect(created.article_count).toBe(1);
+    expect(created.body).toContain("군휴학 전환");
+    expect(db.searchArticlesByLike(["군휴학", "전환"], 10)[0]).toMatchObject({
+      regulation_name: "미래모빌리티학과 운영 내규",
+      source_type: "custom",
+      custom_scope: "undergraduate",
+    });
+
+    const updated = db.updateCustomRegulation(created.id, {
+      regulationName: "미래모빌리티학과 학과 내규",
+      customScope: "undergraduate",
+      customNote: "수정본",
+      body: "제1조(일반휴학 전환)\n입영 취소 시 일반휴학 전환 신청서를 제출한다.",
+    });
+
+    expect(updated.regulation_name).toBe("미래모빌리티학과 학과 내규");
+    expect(db.searchArticlesByLike(["입영", "취소"], 10)[0].regulation_name).toBe("미래모빌리티학과 학과 내규");
+
+    expect(db.deleteCustomRegulation(created.id)).toBe(true);
+    expect(db.searchArticlesByLike(["입영", "취소"], 10)).toHaveLength(0);
+  });
 });

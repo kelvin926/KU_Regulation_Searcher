@@ -1,7 +1,15 @@
 import BetterSqlite3 from "better-sqlite3";
 import fs from "node:fs";
 import path from "node:path";
-import type { ArticleRecord, DbStats, RegulationRecord, SyncFailure } from "../../shared/types";
+import type {
+  ArticleRecord,
+  CustomRegulationInput,
+  CustomRegulationRecord,
+  DbStats,
+  RegulationRecord,
+  SyncFailure,
+} from "../../shared/types";
+import { parseCustomRegulationBody } from "./custom-regulation-parser";
 import { runMigrations } from "./migrations";
 import { ArticleRepository } from "./repositories/article-repository";
 import { RegulationRepository } from "./repositories/regulation-repository";
@@ -84,6 +92,22 @@ export class DatabaseService {
 
   upsertRegulation(meta: RegulationMetaForDb, parsed: ParsedRegulationForDb, rawHtml: string): RegulationRecord {
     return this.regulations.upsertRegulation(meta, parsed, rawHtml);
+  }
+
+  createCustomRegulation(input: CustomRegulationInput): CustomRegulationRecord {
+    return this.regulations.createCustomRegulation(input, parseCustomRegulationBody(input.regulationName, input.body));
+  }
+
+  updateCustomRegulation(id: number, input: CustomRegulationInput): CustomRegulationRecord {
+    return this.regulations.updateCustomRegulation(id, input, parseCustomRegulationBody(input.regulationName, input.body));
+  }
+
+  deleteCustomRegulation(id: number): boolean {
+    return this.regulations.deleteCustomRegulation(id);
+  }
+
+  listCustomRegulations(): CustomRegulationRecord[] {
+    return this.regulations.listCustomRegulations();
   }
 
   beginSync(totalCount: number): number {

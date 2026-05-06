@@ -11,6 +11,10 @@ CREATE TABLE IF NOT EXISTS regulations (
   source_url TEXT NOT NULL,
   fetched_at TEXT NOT NULL,
   raw_html_hash TEXT NOT NULL,
+  source_type TEXT NOT NULL DEFAULT 'official',
+  custom_scope TEXT,
+  custom_note TEXT,
+  updated_at TEXT,
   UNIQUE(seq_history)
 );
 
@@ -26,6 +30,9 @@ CREATE TABLE IF NOT EXISTS articles (
   seq_contents INTEGER,
   source_url TEXT NOT NULL,
   fetched_at TEXT NOT NULL,
+  source_type TEXT NOT NULL DEFAULT 'official',
+  custom_scope TEXT,
+  custom_note TEXT,
   UNIQUE(regulation_name, article_no, seq_history)
 );
 

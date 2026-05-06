@@ -46,8 +46,49 @@ export interface ArticleRecord {
   seq_contents: number | null;
   source_url: string;
   fetched_at: string;
+  source_type?: RegulationSourceType;
+  sourceType?: RegulationSourceType;
+  custom_scope?: QueryScopeOption | null;
+  customScope?: QueryScopeOption | null;
+  custom_note?: string | null;
+  customNote?: string | null;
   rank?: number;
   relevance?: ArticleRelevance;
+}
+
+export const REGULATION_SOURCE_TYPE_VALUES = ["official", "custom"] as const;
+export type RegulationSourceType = (typeof REGULATION_SOURCE_TYPE_VALUES)[number];
+
+export const QUERY_SCOPE_OPTION_VALUES = [
+  "auto",
+  "undergraduate",
+  "general_graduate",
+  "professional_special_graduate",
+  "faculty",
+  "staff_assistant",
+  "seoul",
+  "sejong",
+  "other",
+] as const;
+export type QueryScopeOption = (typeof QUERY_SCOPE_OPTION_VALUES)[number];
+
+export interface CustomRegulationInput {
+  regulationName: string;
+  customScope: QueryScopeOption;
+  customNote?: string;
+  body: string;
+}
+
+export interface CustomRegulationRecord {
+  id: number;
+  regulation_name: string;
+  source_url: string;
+  custom_scope: QueryScopeOption;
+  custom_note: string | null;
+  fetched_at: string;
+  updated_at: string;
+  article_count: number;
+  body?: string;
 }
 
 export const ARTICLE_RELEVANCE_GROUP_VALUES = ["primary", "related", "out_of_scope", "low_relevance"] as const;
@@ -130,6 +171,8 @@ export interface AiTokenUsage {
 export interface SearchArticlesRequest {
   query: string;
   limit?: number;
+  scope?: QueryScopeOption;
+  includeCustomRules?: boolean;
 }
 
 export interface AskSearchResult {
@@ -145,6 +188,8 @@ export interface AskSearchResult {
 export interface GenerateAnswerRequest {
   question: string;
   articleIds: number[];
+  scope?: QueryScopeOption;
+  includeCustomRules?: boolean;
 }
 
 export interface GeneratedAnswer {

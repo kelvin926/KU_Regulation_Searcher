@@ -31,6 +31,7 @@ body {
 
 button,
 input,
+select,
 textarea {
   font: inherit;
 }
@@ -79,6 +80,7 @@ button.secondary.danger:hover {
 }
 
 input,
+select,
 textarea {
   width: 100%;
   border: 1px solid #c5ccd5;
@@ -90,6 +92,7 @@ textarea {
 }
 
 input:focus,
+select:focus,
 textarea:focus {
   border-color: #8a1538;
   box-shadow: 0 0 0 3px rgba(138, 21, 56, 0.14);
@@ -284,6 +287,41 @@ code {
   color: var(--muted);
   font-size: 13px;
   font-weight: 700;
+}
+
+.field-label {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.field-label select {
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.query-scope-bar {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) auto;
+  gap: 12px;
+  align-items: end;
+  margin-top: 10px;
+}
+
+.toggle-label {
+  min-height: 42px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #334155;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.toggle-label input {
+  width: auto;
 }
 
 .candidate-settings-grid {
@@ -622,6 +660,26 @@ progress {
   color: #475467;
 }
 
+.source-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  border-radius: 999px;
+  padding: 0 8px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.source-badge.official {
+  background: #f1e8e7;
+  color: var(--ku-crimson-dark);
+}
+
+.source-badge.custom {
+  background: #e7f0ff;
+  color: #124e9f;
+}
+
 .icon-link,
 .icon-button {
   width: 32px;
@@ -836,4 +894,40 @@ progress {
   color: var(--ku-crimson-dark);
   font-size: 12px;
   font-weight: 700;
+}
+
+.custom-rule-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.custom-rule-form .full-span {
+  grid-column: 1 / -1;
+}
+
+.custom-rule-textarea {
+  min-height: 220px;
+  resize: vertical;
+}
+
+.custom-rule-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.custom-rule-item {
+  display: grid;
+  gap: 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  padding: 12px;
+}
+
+.custom-rule-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }

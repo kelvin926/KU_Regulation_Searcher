@@ -18,12 +18,16 @@ export const QUERY_SCOPE_VALUES = [
   "일반대학원",
   "전문대학원",
   "특수대학원",
+  "전문·특수대학원",
   "교육대학원",
   "법학전문대학원",
+  "서울캠퍼스",
   "세종캠퍼스",
   "교원",
   "직원",
   "조교",
+  "직원·조교",
+  "기타",
   "학생",
   "unknown",
 ] as const;
@@ -145,9 +149,11 @@ function detectScope(compactQuery: string): QueryScope {
   if (compactQuery.includes("법학전문대학원")) return "법학전문대학원";
   if (compactQuery.includes("교육대학원")) return "교육대학원";
   if (compactQuery.includes("일반대학원")) return "일반대학원";
+  if (compactQuery.includes("전문·특수대학원") || compactQuery.includes("전문특수대학원")) return "전문·특수대학원";
   if (compactQuery.includes("전문대학원")) return "전문대학원";
   if (compactQuery.includes("특수대학원")) return "특수대학원";
   if (EXPLICIT_GRADUATE_SCOPE.test(compactQuery)) return "일반대학원";
+  if (compactQuery.includes("서울캠퍼스") || compactQuery.includes("안암캠퍼스") || compactQuery.includes("서울총학생회")) return "서울캠퍼스";
   if (compactQuery.includes("세종캠퍼스")) return "세종캠퍼스";
   if (/학부(생|학생|재학생|과정|휴학|군입대|복학|자퇴|졸업|장학금|수강|입학|편입|규정|학칙)/u.test(compactQuery) || compactQuery === "학부") {
     return "학부";
@@ -155,6 +161,7 @@ function detectScope(compactQuery: string): QueryScope {
   if (/(학위청구논문|학위논문|논문심사|논문지도교수|지도교수|수료연구등록)/u.test(compactQuery)) {
     return "일반대학원";
   }
+  if (compactQuery.includes("직원조교") || compactQuery.includes("직원·조교")) return "직원·조교";
   if (compactQuery.includes("조교")) return "조교";
   if (compactQuery.includes("교원") || (compactQuery.includes("교수") && !/(지도교수|논문지도교수)/u.test(compactQuery))) {
     return "교원";

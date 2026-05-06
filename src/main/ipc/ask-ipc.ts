@@ -9,6 +9,7 @@ export function registerAskIpc(context: IpcContext, wrap: IpcHandlerWrap): void 
       context.searchService.searchForQuestion(
         request.query,
         request.limit ?? context.settingsStore.getRagSettings().searchCandidateLimit,
+        { scope: request.scope, includeCustomRules: request.includeCustomRules },
       ),
     ),
   );
@@ -24,6 +25,8 @@ export function registerAskIpc(context: IpcContext, wrap: IpcHandlerWrap): void 
         modelId: context.settingsStore.getModelId(),
         question: request.question,
         articles,
+        scope: request.scope,
+        includeCustomRules: request.includeCustomRules,
       });
       if (request.articleIds.length > articles.length) {
         answer.warnings.unshift(

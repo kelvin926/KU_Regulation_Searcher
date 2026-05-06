@@ -41,6 +41,7 @@ export function AnswerPanel({ answer, articles = [] }: { answer: GeneratedAnswer
                 <mark>{article.regulation_name}</mark>
                 <mark>{article.article_no}</mark>
                 {article.article_title && <span>{article.article_title}</span>}
+                <span className={`source-badge ${getSourceType(article)}`}>{getSourceLabel(article)}</span>
               </div>
               <div className="answer-highlight-body">{article.article_body}</div>
             </article>
@@ -55,4 +56,12 @@ function formatConfidence(value: GeneratedAnswer["confidence"]): string {
   if (value === "high") return "높음";
   if (value === "medium") return "보통";
   return "낮음";
+}
+
+function getSourceType(article: ArticleRecord): "official" | "custom" {
+  return (article.source_type ?? article.sourceType ?? "official") === "custom" ? "custom" : "official";
+}
+
+function getSourceLabel(article: ArticleRecord): string {
+  return getSourceType(article) === "custom" ? "커스텀 규정" : "공식 규정";
 }

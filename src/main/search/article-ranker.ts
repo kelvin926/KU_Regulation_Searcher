@@ -1,4 +1,4 @@
-import type { ArticleRecord } from "../../shared/types";
+import type { ArticleRecord, QueryScopeOption } from "../../shared/types";
 import type { ExpandedQuery } from "./query-expander";
 import { rankArticlesByScope } from "./scope-ranker";
 
@@ -25,6 +25,7 @@ export function rankArticlesForQuestion(
   query: string,
   queryInfo: readonly string[] | ExpandedQuery,
   limit: number,
+  options: { scope?: QueryScopeOption } = {},
 ): RankedArticleResult {
-  return rankArticlesByScope(articles, { query, queryInfo, limit });
+  return rankArticlesByScope(articles, { query, queryInfo, limit, scope: options.scope });
 }

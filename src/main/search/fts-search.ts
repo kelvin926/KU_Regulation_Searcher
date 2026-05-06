@@ -1,4 +1,4 @@
-import type { AskSearchResult, ArticleRecord, SearchPageRequest } from "../../shared/types";
+import type { AskSearchResult, ArticleRecord, QueryScopeOption, SearchPageRequest } from "../../shared/types";
 import { AppError } from "../../shared/errors";
 import {
   HARD_MAX_RAG_ARTICLES,
@@ -10,6 +10,7 @@ import { normalizeArticleNo } from "../crawler/regulation-parser";
 import { rankArticlesForQuestion } from "./article-ranker";
 import { expandQuery } from "./query-expander";
 import { createSearchQueryPlan, mergeExpandedQueries } from "./query-planner";
+import { buildScopedSearchQuery } from "./query-scope-options";
 import { parseSearchOperators } from "./search-operators";
 
 const RERANK_POOL_MULTIPLIER = 5;
@@ -21,34 +22,41 @@ const DIRECT_REGULATION_POOL_SIZE = 800;
 export class SearchService {
   constructor(private readonly db: DatabaseService) {}
 
-  searchForQuestion(query: string, limit: number): AskSearchResult {
+  searchForQuestion(
+    query: string,
+    limit: number,
+    options: { scope?: QueryScopeOption; includeCustomRules?: boolean } = {},
+  ): AskSearchResult {
     const stats = this.db.getStats();
     if (stats.articleCount === 0) {
       return { articles: [], expandedKeywords: [], errorCode: "LOCAL_DB_EMPTY" };
     }
 
     const safeLimit = clampSearchCandidateLimit(limit);
+    const includeCustomRules = options.includeCustomRules !== false;
+    const scopedQuery = buildScopedSearchQuery(query, options.scope);
     const operatorQuery = parseSearchOperators(query);
     const searchPoolLimit = getRerankPoolLimit(safeLimit, 1);
     if (operatorQuery.hasOperators) {
       const result = this.db.searchArticlesByBooleanQuery(query, searchPoolLimit);
-      const ranked = rankArticlesForQuestion(result.articles, query, result.highlightTerms, safeLimit);
+      const pool = filterCustomArticles(result.articles, includeCustomRules);
+      const ranked = rankArticlesForQuestion(pool, query, result.highlightTerms, safeLimit, { scope: options.scope });
       return {
         articles: ranked.articles,
         expandedKeywords: result.highlightTerms,
-        errorCode: result.articles.length === 0 ? "NO_RELEVANT_ARTICLES" : undefined,
+        errorCode: pool.length === 0 ? "NO_RELEVANT_ARTICLES" : undefined,
         candidateLimitReached: ranked.candidateLimitReached,
         searchedCandidateCount: ranked.searchedCandidateCount,
         suggestedQueries: buildSuggestedQueries(query, ranked.articles),
       };
     }
 
-    const expanded = expandQuery(query);
+    const expanded = expandQuery(scopedQuery);
     if (!expanded.ftsQuery) {
       return { articles: [], expandedKeywords: [], errorCode: "NO_RELEVANT_ARTICLES" };
     }
 
-    const plan = createSearchQueryPlan(query);
+    const plan = createSearchQueryPlan(scopedQuery);
     const expandedVariants = plan.variants.map((variant) => expandQuery(variant));
     const rankingQueryInfo = mergeExpandedQueries(expanded, expandedVariants, plan.isCompound);
     const plannedPoolLimit = getRerankPoolLimit(safeLimit, plan.variants.length);
@@ -98,12 +106,13 @@ export class SearchService {
       articles = this.db.searchArticlesByLike(rankingQueryInfo.keywords, plannedPoolLimit);
     }
 
-    const ranked = rankArticlesForQuestion(articles, query, rankingQueryInfo, safeLimit);
+    const sourceFilteredArticles = filterCustomArticles(articles, includeCustomRules);
+    const ranked = rankArticlesForQuestion(sourceFilteredArticles, query, rankingQueryInfo, safeLimit, { scope: options.scope });
     const suggestedQueries = buildSuggestedQueries(query, ranked.articles, plan.variants);
     return {
       articles: ranked.articles,
       expandedKeywords: rankingQueryInfo.keywords.slice(0, 32),
-      errorCode: articles.length === 0 ? "NO_RELEVANT_ARTICLES" : undefined,
+      errorCode: sourceFilteredArticles.length === 0 ? "NO_RELEVANT_ARTICLES" : undefined,
       candidateLimitReached: ranked.candidateLimitReached,
       searchedCandidateCount: ranked.searchedCandidateCount,
       routingNotes: plan.routingNotes,
@@ -197,6 +206,11 @@ function getRerankPoolLimit(limit: number, variantCount: number): number {
   const baseLimit = Math.min(Math.max(limit * RERANK_POOL_MULTIPLIER, MIN_RERANK_POOL_SIZE), MAX_RERANK_POOL_SIZE);
   if (variantCount <= 1) return baseLimit;
   return Math.min(baseLimit + (variantCount - 1) * 90, MAX_COMPOUND_RERANK_POOL_SIZE);
+}
+
+function filterCustomArticles(articles: ArticleRecord[], includeCustomRules: boolean): ArticleRecord[] {
+  if (includeCustomRules) return articles;
+  return articles.filter((article) => (article.source_type ?? article.sourceType ?? "official") !== "custom");
 }
 
 function buildSuggestedQueries(query: string, articles: ArticleRecord[], routeVariants: string[] = []): string[] {

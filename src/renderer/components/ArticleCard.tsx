@@ -46,13 +46,21 @@ export function ArticleCard({
           {article.relevance && (
             <div className="article-badge-row">
               <span className={`relevance-badge ${article.relevance.group}`}>{article.relevance.label}</span>
+              <span className={`source-badge ${getSourceType(article)}`}>{getSourceLabel(article)}</span>
+            </div>
+          )}
+          {!article.relevance && (
+            <div className="article-badge-row">
+              <span className={`source-badge ${getSourceType(article)}`}>{getSourceLabel(article)}</span>
             </div>
           )}
           <div className="meta-line source-url">출처 {article.source_url}</div>
         </div>
-        <a className="icon-link" href={article.source_url} target="_blank" rel="noreferrer" title="출처 열기">
-          <ExternalLink size={16} />
-        </a>
+        {getSourceType(article) === "official" && (
+          <a className="icon-link" href={article.source_url} target="_blank" rel="noreferrer" title="출처 열기">
+            <ExternalLink size={16} />
+          </a>
+        )}
       </div>
       <pre className={compact ? "article-body compact" : "article-body"}>
         <HighlightedText text={article.article_body} terms={highlightTerms} />
@@ -60,6 +68,14 @@ export function ArticleCard({
       <RegulationDownloadButtons article={article} compact={compact} />
     </article>
   );
+}
+
+function getSourceType(article: ArticleRecord): "official" | "custom" {
+  return (article.source_type ?? article.sourceType ?? "official") === "custom" ? "custom" : "official";
+}
+
+function getSourceLabel(article: ArticleRecord): string {
+  return getSourceType(article) === "custom" ? "커스텀 규정" : "공식 규정";
 }
 
 function formatDate(value: string): string {

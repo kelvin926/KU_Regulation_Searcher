@@ -6,6 +6,8 @@ import type {
   ArticleRecord,
   AskSearchResult,
   AuthStatus,
+  CustomRegulationInput,
+  CustomRegulationRecord,
   DownloadRegulationFileRequest,
   DownloadResult,
   DbStats,
@@ -55,6 +57,12 @@ export interface KuRegulationApi {
   ask: {
     search: (request: SearchArticlesRequest) => Promise<ApiResult<AskSearchResult>>;
     generate: (request: GenerateAnswerRequest) => Promise<ApiResult<GeneratedAnswer>>;
+  };
+  customRegulations: {
+    list: () => Promise<ApiResult<CustomRegulationRecord[]>>;
+    create: (input: CustomRegulationInput) => Promise<ApiResult<CustomRegulationRecord>>;
+    update: (id: number, input: CustomRegulationInput) => Promise<ApiResult<CustomRegulationRecord>>;
+    delete: (id: number) => Promise<ApiResult<boolean>>;
   };
   search: {
     articles: (request: SearchPageRequest) => Promise<ApiResult<ArticleRecord[]>>;

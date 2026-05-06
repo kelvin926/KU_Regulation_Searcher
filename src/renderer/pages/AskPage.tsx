@@ -1,6 +1,6 @@
 import { Bot, Search } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import type { ArticleRecord, GeneratedAnswer } from "../../shared/types";
+import type { ArticleRecord, GeneratedAnswer, QueryScopeOption } from "../../shared/types";
 import { DEFAULT_SEARCH_CANDIDATE_LIMIT, MAX_RAG_ARTICLES } from "../../shared/constants";
 import { ArticleCard } from "../components/ArticleCard";
 import { AnswerPanel } from "../components/AnswerPanel";
@@ -10,6 +10,7 @@ import { WarningBox } from "../components/WarningBox";
 import { getErrorMessage, unwrap } from "../lib/api";
 import { PageHeader } from "../components/PageHeader";
 import { StatusMessage } from "../components/StatusMessage";
+import { QUERY_SCOPE_SELECT_OPTIONS, formatQueryScopeOption } from "../lib/queryScopeOptions";
 
 export function AskPage() {
   const [question, setQuestion] = useState("");
@@ -17,6 +18,8 @@ export function AskPage() {
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [keywords, setKeywords] = useState<string[]>([]);
   const [answer, setAnswer] = useState<GeneratedAnswer | null>(null);
+  const [queryScope, setQueryScope] = useState<QueryScopeOption>("auto");
+  const [includeCustomRules, setIncludeCustomRules] = useState(true);
   const [message, setMessage] = useState<string | null>(null);
   const [messageTone, setMessageTone] = useState<"info" | "warning" | "danger">("warning");
   const [busyAction, setBusyAction] = useState<"searching" | "generating" | null>(null);
@@ -39,7 +42,14 @@ export function AskPage() {
     setMessage(null);
     setAnswer(null);
     try {
-      const result = unwrap(await window.kuRegulation.ask.search({ query: question, limit: candidateLimits.searchCandidateLimit }));
+      const result = unwrap(
+        await window.kuRegulation.ask.search({
+          query: question,
+          limit: candidateLimits.searchCandidateLimit,
+          scope: queryScope,
+          includeCustomRules,
+        }),
+      );
       setArticles(result.articles);
       setSelectedIds(new Set(pickDefaultAiEvidence(result.articles, candidateLimits.maxCandidateLimit).map((article) => article.id)));
       setKeywords(result.expandedKeywords);
@@ -92,6 +102,8 @@ export function AskPage() {
           await window.kuRegulation.ask.generate({
             question,
             articleIds: Array.from(selectedIds),
+            scope: queryScope,
+            includeCustomRules,
           }),
         ),
       );
@@ -120,6 +132,26 @@ export function AskPage() {
             }}
             placeholder="예: 일반휴학은 몇 학기까지 가능한가요?"
           />
+          <div className="query-scope-bar">
+            <label className="field-label">
+              질의 그룹
+              <select value={queryScope} onChange={(event) => setQueryScope(event.currentTarget.value as QueryScopeOption)}>
+                {QUERY_SCOPE_SELECT_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="toggle-label">
+              <input
+                type="checkbox"
+                checked={includeCustomRules}
+                onChange={(event) => setIncludeCustomRules(event.currentTarget.checked)}
+              />
+              커스텀 규정 포함
+            </label>
+          </div>
           <SearchOperatorHint />
           <div className="button-row">
             <button type="button" disabled={busy || question.trim().length === 0} onClick={findArticles}>
@@ -133,7 +165,7 @@ export function AskPage() {
           </div>
           {keywords.length > 0 && <div className="keyword-row">{keywords.map((keyword) => <code key={keyword}>{keyword}</code>)}</div>}
           <div className="meta-line">
-            검색 후보 {candidateLimits.searchCandidateLimit}개 · AI 최대 근거 {candidateLimits.maxCandidateLimit}개
+            검색 후보 {candidateLimits.searchCandidateLimit}개 · AI 최대 근거 {candidateLimits.maxCandidateLimit}개 · 질의 그룹 {formatQueryScopeOption(queryScope)}
           </div>
           {selectedIds.size > candidateLimits.maxCandidateLimit && (
             <WarningBox tone="info">

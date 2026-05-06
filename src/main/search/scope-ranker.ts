@@ -1,12 +1,14 @@
-import type { ArticleRecord, ArticleRelevance, ArticleRelevanceGroup } from "../../shared/types";
+import type { ArticleRecord, ArticleRelevance, ArticleRelevanceGroup, QueryScopeOption } from "../../shared/types";
 import { normalizeArticleNo } from "../crawler/regulation-parser";
 import type { ExpandedQuery } from "./query-expander";
 import { compact, parseQueryIntent, type ParsedQueryIntent, type QueryScope } from "./query-intent";
+import { queryScopeFromOption } from "./query-scope-options";
 
 export interface ScopeRankInput {
   query: string;
   queryInfo: readonly string[] | ExpandedQuery;
   limit: number;
+  scope?: QueryScopeOption;
 }
 
 export interface ScopeRankResult {
@@ -50,7 +52,7 @@ const DELETED_BODY = /삭제\s*<|^삭제$/u;
 
 export function rankArticlesByScope(articles: ArticleRecord[], input: ScopeRankInput): ScopeRankResult {
   const unique = dedupeArticles(articles);
-  const context = buildRankingContext(input.query, input.queryInfo);
+  const context = buildRankingContext(input.query, input.queryInfo, input.scope);
   const scored = unique
     .map((article, index) => scoreArticle(article, index, context))
     .sort((a, b) => b.score - a.score || a.index - b.index);
@@ -63,7 +65,12 @@ export function rankArticlesByScope(articles: ArticleRecord[], input: ScopeRankI
   };
 }
 
-function buildRankingContext(query: string, queryInfo: readonly string[] | ExpandedQuery): RankingContext {
+function buildRankingContext(query: string, queryInfo: readonly string[] | ExpandedQuery, scope?: QueryScopeOption): RankingContext {
+  const applyScope = (queryIntent: ParsedQueryIntent): ParsedQueryIntent => {
+    const manualScope = queryScopeFromOption(scope);
+    return manualScope ? { ...queryIntent, scope: manualScope } : queryIntent;
+  };
+
   if (isExpandedQuery(queryInfo)) {
     return {
       query,
@@ -71,7 +78,7 @@ function buildRankingContext(query: string, queryInfo: readonly string[] | Expan
       keywords: unique(queryInfo.keywords.map(compact).filter(Boolean)),
       requiredTerms: unique(queryInfo.requiredTerms.map(compact).filter(Boolean)),
       optionalTerms: unique(queryInfo.optionalTerms.map(compact).filter(Boolean)),
-      queryIntent: queryInfo.queryIntent ?? parseQueryIntent(query),
+      queryIntent: applyScope(queryInfo.queryIntent ?? parseQueryIntent(query)),
     };
   }
 
@@ -81,7 +88,7 @@ function buildRankingContext(query: string, queryInfo: readonly string[] | Expan
     keywords: unique(queryInfo.map(compact).filter(Boolean)),
     requiredTerms: [],
     optionalTerms: [],
-    queryIntent: parseQueryIntent(query),
+    queryIntent: applyScope(parseQueryIntent(query)),
   };
 }
 
@@ -371,6 +378,21 @@ function scoreScope(article: ArticleRecord, context: RankingContext): { score: n
   let score = 0;
   let outOfScope = false;
   const reasons: string[] = [];
+  const sourceType = article.source_type ?? article.sourceType ?? "official";
+  const customScope = article.custom_scope ?? article.customScope ?? null;
+
+  if (sourceType === "custom") {
+    score += 16;
+    if (customScope) {
+      const customQueryScope = queryScopeFromOption(customScope);
+      if (customQueryScope && customQueryScope === queryScope) {
+        score += 90;
+        reasons.push("커스텀 규정 범위 일치");
+      } else if (customQueryScope && queryScope !== "unknown" && queryScope !== "학생" && customScope !== "other") {
+        score -= 45;
+      }
+    }
+  }
 
   if (queryScope === "학부" && /(교원|직원|조교|책임수업시간)/u.test(`${regulationName} ${title}`)) {
     score -= 90;
@@ -412,6 +434,9 @@ function scoreScope(article: ArticleRecord, context: RankingContext): { score: n
   }
 
   if (queryScope === "unknown" || queryScope === "학생") return { score, outOfScope, reasons };
+  if ((queryScope === "서울캠퍼스" || queryScope === "세종캠퍼스") && isCampusComparisonQuery(directQuery)) {
+    return { score, outOfScope, reasons };
+  }
 
   if (
     queryScope === "일반대학원" &&
@@ -455,6 +480,20 @@ function scoreScope(article: ArticleRecord, context: RankingContext): { score: n
 
 function scopeTerms(scope: QueryScope): string[] {
   if (scope === "unknown") return [];
+  if (scope === "전문·특수대학원") {
+    return [
+      "전문대학원",
+      "특수대학원",
+      "교육대학원",
+      "법학전문대학원",
+      "경영전문대학원",
+      "기술경영전문대학원",
+      "대학원학칙",
+    ].map(compact);
+  }
+  if (scope === "직원·조교") return ["직원", "조교", "직원인사", "조교임용"].map(compact);
+  if (scope === "서울캠퍼스") return ["서울캠퍼스", "안암캠퍼스", "서울"].map(compact);
+  if (scope === "기타") return ["내규", "지침", "운영"].map(compact);
   return [compact(scope)];
 }
 
@@ -481,7 +520,39 @@ function scopePenaltyTerms(scope: QueryScope): Array<{ term: string; penalty: nu
       { term: "세종캠퍼스", penalty: -50 },
     ];
   }
+  if (scope === "전문·특수대학원") {
+    return [
+      { term: "학사운영규정", penalty: -50 },
+      { term: "일반대학원시행세칙", penalty: -45 },
+      { term: "학부", penalty: -60 },
+      { term: "교원", penalty: -60 },
+      { term: "직원", penalty: -50 },
+      { term: "조교", penalty: -50 },
+    ];
+  }
+  if (scope === "교원") {
+    return [
+      { term: "대학원", penalty: -50 },
+      { term: "학사운영규정", penalty: -55 },
+      { term: "직원", penalty: -60 },
+      { term: "조교", penalty: -60 },
+    ];
+  }
+  if (scope === "직원·조교") {
+    return [
+      { term: "교원", penalty: -60 },
+      { term: "대학원", penalty: -45 },
+      { term: "학사운영규정", penalty: -50 },
+    ];
+  }
+  if (scope === "서울캠퍼스") {
+    return [{ term: "세종캠퍼스", penalty: -55 }];
+  }
   return [];
+}
+
+function isCampusComparisonQuery(query: string): boolean {
+  return /(서울|안암)/u.test(query) && /세종/u.test(query) && /(차이|비교|다른|총학생회|학생회)/u.test(query);
 }
 
 function scoreHighAuthority(regulationName: string, context: RankingContext): number {

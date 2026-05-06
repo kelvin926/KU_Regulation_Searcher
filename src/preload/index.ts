@@ -12,6 +12,8 @@ import type {
   GenerateAnswerRequest,
   GeneratedAnswer,
   ArticleRecord,
+  CustomRegulationInput,
+  CustomRegulationRecord,
   RagCandidateSettings,
   RegulationFile,
   RegulationTargetCacheInfo,
@@ -67,6 +69,14 @@ const api: KuRegulationApi = {
       ipcRenderer.invoke("ask:search", request),
     generate: (request: GenerateAnswerRequest): Promise<ApiResult<GeneratedAnswer>> =>
       ipcRenderer.invoke("ask:generate", request),
+  },
+  customRegulations: {
+    list: (): Promise<ApiResult<CustomRegulationRecord[]>> => ipcRenderer.invoke("customRegulations:list"),
+    create: (input: CustomRegulationInput): Promise<ApiResult<CustomRegulationRecord>> =>
+      ipcRenderer.invoke("customRegulations:create", input),
+    update: (id: number, input: CustomRegulationInput): Promise<ApiResult<CustomRegulationRecord>> =>
+      ipcRenderer.invoke("customRegulations:update", id, input),
+    delete: (id: number): Promise<ApiResult<boolean>> => ipcRenderer.invoke("customRegulations:delete", id),
   },
   search: {
     articles: (request: SearchPageRequest): Promise<ApiResult<ArticleRecord[]>> =>

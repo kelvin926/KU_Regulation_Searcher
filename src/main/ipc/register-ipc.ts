@@ -1,5 +1,6 @@
 import { registerAskIpc } from "./ask-ipc";
 import { registerAuthIpc } from "./auth-ipc";
+import { registerCustomRegulationsIpc } from "./custom-regulations-ipc";
 import { registerDataIpc } from "./data-ipc";
 import { registerDbIpc } from "./db-ipc";
 import { registerFilesIpc } from "./files-ipc";
@@ -17,6 +18,7 @@ export function registerIpcHandlers(context: IpcContext): void {
   registerDbIpc(context, wrap);
   registerSettingsIpc(context, wrap);
   registerAskIpc(context, wrap);
+  registerCustomRegulationsIpc(context, wrap);
   registerSearchIpc(context, wrap);
   registerFilesIpc(context, wrap);
   registerDataIpc(context, wrap);
