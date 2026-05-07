@@ -738,8 +738,45 @@ progress {
 }
 
 .answer-text {
-  white-space: pre-wrap;
   line-height: 1.65;
+}
+
+.markdown-text {
+  white-space: normal;
+}
+
+.markdown-text p,
+.markdown-text ol,
+.markdown-text ul {
+  margin: 0 0 10px;
+}
+
+.markdown-text p:last-child,
+.markdown-text ol:last-child,
+.markdown-text ul:last-child {
+  margin-bottom: 0;
+}
+
+.markdown-text ol,
+.markdown-text ul {
+  padding-left: 22px;
+}
+
+.markdown-text li {
+  margin: 4px 0;
+}
+
+.markdown-text strong {
+  color: var(--ink);
+  font-weight: 800;
+}
+
+.markdown-text code {
+  border-radius: 4px;
+  background: #eef2f7;
+  padding: 1px 5px;
+  font-family: "Consolas", "SFMono-Regular", monospace;
+  font-size: 0.94em;
 }
 
 .answer-highlight-list {

@@ -1,5 +1,6 @@
 import { Copy } from "lucide-react";
 import type { ArticleRecord, GeneratedAnswer } from "../../shared/types";
+import { MarkdownText } from "./MarkdownText";
 
 export function AnswerPanel({ answer, articles = [] }: { answer: GeneratedAnswer | null; articles?: ArticleRecord[] }) {
   if (!answer) {
@@ -26,7 +27,7 @@ export function AnswerPanel({ answer, articles = [] }: { answer: GeneratedAnswer
         </button>
       </div>
       {answer.verification.warningMessage && <div className="validation-warning">{answer.verification.warningMessage}</div>}
-      <div className="answer-text">{answer.answer}</div>
+      <MarkdownText className="answer-text markdown-text" text={answer.answer} />
       <div className="meta-line">
         신뢰도 {formatConfidence(answer.confidence)} · 근거 부족 {answer.missing_evidence ? "예" : "아니오"}
         {answer.usage &&

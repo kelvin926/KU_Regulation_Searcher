@@ -10,7 +10,7 @@ Branch: `main`
 | Check | Result |
 | --- | --- |
 | `npm install` | Passed |
-| `npm test` | Passed, 13 files / 65 tests |
+| `npm test` | Passed, 14 files / 68 tests |
 | `npm run eval:local-search:complex` | Passed, 10,000 / 10,000 generated natural-language complex local DB questions |
 | `npm run build` | Passed |
 | `npm run rebuild:electron` | Passed |
@@ -22,9 +22,9 @@ Branch: `main`
 
 | Check | Result |
 | --- | --- |
-| Installer file | `release\KU-Regulation-Setup-0.9.1.exe` |
-| Installer size | 179,052,992 bytes, about 170.8 MiB |
-| SHA-256 | `75A8D644CBAEC0FF39732E52D3B64D1BB22542890942D1CA789BC818984FBB94` |
+| Installer file | `release\KU-Regulation-Setup-0.9.1.1.exe` |
+| Installer size | 179,053,703 bytes, about 170.8 MiB |
+| SHA-256 | `066BC0D1A9AB6ACDAE1ABFD3185FD9A1C9EAB54089DCFF3FC5A6466F29F484C5` |
 | Install type | Per-user NSIS install |
 | Admin permission | Not required in silent install validation |
 | Install/update success | Passed, exit code 0 |
@@ -36,8 +36,8 @@ Branch: `main`
 | Installer icon | Verified by extracting the associated icon from the setup exe |
 | Packaged exe icon | Verified by extracting the associated icon from `release\win-unpacked\KU Regulation Searcher.exe` |
 | Installed exe icon | Verified by extracting the associated icon from the installed exe |
-| Installed version | `KU Regulation Searcher 0.9.1` in the current-user uninstall registry |
-| App display version | `0.9.1` embedded in the renderer bundle |
+| Installed version | `KU Regulation Searcher 0.9.1-1` in the current-user uninstall registry |
+| App display version | `0.9.1.1` embedded in the renderer bundle |
 | SmartScreen | Possible because the installer is unsigned |
 
 Note: this PC already had a pre-0.4.0 install under `%LOCALAPPDATA%\Programs\KU Regulation Assistant`. Updating in place keeps that installation folder for compatibility, but the visible app name, exe name, window title, shortcut name, and icon are `KU Regulation Searcher`. Fresh per-user installs use the current product name.
@@ -55,6 +55,15 @@ Note: this PC already had a pre-0.4.0 install under `%LOCALAPPDATA%\Programs\KU 
 | Regulation list cache | `%APPDATA%\KU Regulation Searcher\config\regulation-targets.json` exists |
 | Legacy migration | `%APPDATA%\KU Regulation Assistant\` is copied to the new 0.4.0 path when needed |
 | Repo data leakage | No repo-root `data`, `auth`, `logs`, `.env`, sqlite, or encrypted session files were created |
+
+## 0.9.1.1 validation notes
+
+- 0.9.1.1 renders the AI answer body through a safe React Markdown subset instead of displaying raw `**...**` markers.
+- Supported answer formatting includes bold text, ordered lists, unordered lists, and inline code.
+- Raw HTML remains escaped as text by React rendering and is not injected into the DOM.
+- The npm package version is `0.9.1-1` for semver compatibility; the user-facing app/release version is `0.9.1.1`.
+- The installed app package and renderer bundle were checked after silent update install, and the installed app launched successfully.
+- Search ranking and evidence selection were not changed in 0.9.1.1; the 10,000-question complex search validation remains the 0.9.1 baseline for this patch.
 
 ## 0.9.1 validation notes
 
