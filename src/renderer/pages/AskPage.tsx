@@ -1,6 +1,14 @@
 import { Bot, Search } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import type { ArticleRecord, GeneratedAnswer, QueryCampusOption, QueryGroupOption } from "../../shared/types";
+import type {
+  ArticleRecord,
+  DetectedQueryLanguage,
+  GeneratedAnswer,
+  QueryCampusOption,
+  QueryGroupOption,
+  QueryLanguageOption,
+  TranslationSource,
+} from "../../shared/types";
 import { DEFAULT_SEARCH_CANDIDATE_LIMIT, MAX_RAG_ARTICLES } from "../../shared/constants";
 import { ArticleCard } from "../components/ArticleCard";
 import { AnswerPanel } from "../components/AnswerPanel";
@@ -16,6 +24,12 @@ import {
   formatQueryCampusOption,
   formatQueryGroupOption,
 } from "../lib/queryScopeOptions";
+import {
+  QUERY_LANGUAGE_SELECT_OPTIONS,
+  formatDetectedQueryLanguage,
+  formatQueryLanguageOption,
+  formatTranslationSource,
+} from "../lib/queryLanguageOptions";
 
 export function AskPage() {
   const [question, setQuestion] = useState("");
@@ -25,6 +39,10 @@ export function AskPage() {
   const [answer, setAnswer] = useState<GeneratedAnswer | null>(null);
   const [queryCampus, setQueryCampus] = useState<QueryCampusOption>("auto");
   const [queryGroup, setQueryGroup] = useState<QueryGroupOption>("auto");
+  const [queryLanguage, setQueryLanguage] = useState<QueryLanguageOption>("auto");
+  const [detectedLanguage, setDetectedLanguage] = useState<DetectedQueryLanguage | null>(null);
+  const [normalizedQueries, setNormalizedQueries] = useState<string[]>([]);
+  const [translationSource, setTranslationSource] = useState<TranslationSource>("none");
   const [includeCustomRules, setIncludeCustomRules] = useState(true);
   const [message, setMessage] = useState<string | null>(null);
   const [messageTone, setMessageTone] = useState<"info" | "warning" | "danger">("warning");
@@ -47,6 +65,9 @@ export function AskPage() {
     setBusyAction("searching");
     setMessage(null);
     setAnswer(null);
+    setDetectedLanguage(null);
+    setNormalizedQueries([]);
+    setTranslationSource("none");
     try {
       const result = unwrap(
         await window.kuRegulation.ask.search({
@@ -54,12 +75,16 @@ export function AskPage() {
           limit: candidateLimits.searchCandidateLimit,
           campus: queryCampus,
           group: queryGroup,
+          language: queryLanguage,
           includeCustomRules,
         }),
       );
       setArticles(result.articles);
       setSelectedIds(new Set(pickDefaultAiEvidence(result.articles, candidateLimits.maxCandidateLimit).map((article) => article.id)));
       setKeywords(result.expandedKeywords);
+      setDetectedLanguage(result.detectedLanguage ?? null);
+      setNormalizedQueries(result.normalizedQueries ?? []);
+      setTranslationSource(result.translationSource ?? "none");
       if (result.errorCode === "LOCAL_DB_EMPTY") {
         setMessageTone("warning");
         setMessage("[LOCAL_DB_EMPTY] 먼저 규정을 동기화하세요.");
@@ -111,6 +136,8 @@ export function AskPage() {
             articleIds: Array.from(selectedIds),
             campus: queryCampus,
             group: queryGroup,
+            language: queryLanguage,
+            detectedLanguage: detectedLanguage ?? undefined,
             includeCustomRules,
           }),
         ),
@@ -141,6 +168,16 @@ export function AskPage() {
             placeholder="예: 일반휴학은 몇 학기까지 가능한가요?"
           />
           <div className="query-scope-bar">
+            <label className="field-label">
+              답변 언어
+              <select value={queryLanguage} onChange={(event) => setQueryLanguage(event.currentTarget.value as QueryLanguageOption)}>
+                {QUERY_LANGUAGE_SELECT_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
             <label className="field-label">
               캠퍼스
               <select value={queryCampus} onChange={(event) => setQueryCampus(event.currentTarget.value as QueryCampusOption)}>
@@ -184,8 +221,13 @@ export function AskPage() {
           {keywords.length > 0 && <div className="keyword-row">{keywords.map((keyword) => <code key={keyword}>{keyword}</code>)}</div>}
           <div className="meta-line">
             검색 후보 {candidateLimits.searchCandidateLimit}개 · AI 최대 근거 {candidateLimits.maxCandidateLimit}개 · 캠퍼스{" "}
-            {formatQueryCampusOption(queryCampus)} · 질의 그룹 {formatQueryGroupOption(queryGroup)}
+            {formatQueryCampusOption(queryCampus)} · 질의 그룹 {formatQueryGroupOption(queryGroup)} · 언어{" "}
+            {formatQueryLanguageOption(queryLanguage)}
+            {detectedLanguage ? ` · 감지 ${formatDetectedQueryLanguage(detectedLanguage)} · 검색 보정 ${formatTranslationSource(translationSource)}` : ""}
           </div>
+          {normalizedQueries.length > 0 && (
+            <div className="meta-line">검색 보정 질의: {normalizedQueries.slice(0, 4).map((query) => `"${query}"`).join(", ")}</div>
+          )}
           {selectedIds.size > candidateLimits.maxCandidateLimit && (
             <WarningBox tone="info">
               선택된 근거 조항이 {selectedIds.size}개입니다. AI 답변에는 관련도가 높은 순서대로 최대 {candidateLimits.maxCandidateLimit}개까지만 전달됩니다. 너무 많은 근거를 넣으면 답변 품질이 떨어질 수 있습니다.

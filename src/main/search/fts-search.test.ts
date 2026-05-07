@@ -93,6 +93,29 @@ describe("SearchService RAG candidate limits", () => {
     expect(result.articles[0].relevance?.group).toBe("primary");
   });
 
+  it("adds multilingual diagnostics and Korean normalized search variants", () => {
+    const db = createMockDatabase({
+      ftsArticles: [
+        createArticle(
+          1,
+          "학사운영 규정",
+          "제29조",
+          "군입대 휴학",
+        ),
+      ],
+    });
+    const service = new SearchService(db);
+
+    const result = service.searchForQuestion("Can undergraduate students take military leave in their first semester?", 5, {
+      language: "auto",
+    });
+
+    expect(result.detectedLanguage).toBe("en");
+    expect(result.translationSource).toBe("local-glossary");
+    expect(result.normalizedQueries?.join(" ")).toContain("군입대");
+    expect(result.expandedKeywords).toEqual(expect.arrayContaining(["군입대", "신입생"]));
+  });
+
   it("returns routing diagnostics and retry suggestions when no grounded evidence is found", () => {
     const service = new SearchService(createMockDatabase({}));
 

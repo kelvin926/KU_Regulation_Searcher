@@ -1,4 +1,12 @@
-import type { AskSearchResult, ArticleRecord, QueryCampusOption, QueryGroupOption, SearchPageRequest } from "../../shared/types";
+import type {
+  AskSearchResult,
+  ArticleRecord,
+  QueryCampusOption,
+  QueryGroupOption,
+  QueryLanguageOption,
+  SearchPageRequest,
+  TranslationSource,
+} from "../../shared/types";
 import { AppError } from "../../shared/errors";
 import {
   HARD_MAX_RAG_ARTICLES,
@@ -12,6 +20,8 @@ import { expandQuery } from "./query-expander";
 import { createSearchQueryPlan, mergeExpandedQueries } from "./query-planner";
 import { buildScopedSearchQuery, scopedCampusPrefix, scopedGroupPrefix } from "./query-scope-options";
 import { parseSearchOperators } from "./search-operators";
+import { buildLocalKoreanQueryVariants } from "./multilingual-glossary";
+import { resolveQueryLanguage } from "./query-language";
 
 const RERANK_POOL_MULTIPLIER = 5;
 const MIN_RERANK_POOL_SIZE = 150;
@@ -25,11 +35,24 @@ export class SearchService {
   searchForQuestion(
     query: string,
     limit: number,
-    options: { group?: QueryGroupOption; campus?: QueryCampusOption; scope?: QueryGroupOption; includeCustomRules?: boolean } = {},
+    options: {
+      group?: QueryGroupOption;
+      campus?: QueryCampusOption;
+      scope?: QueryGroupOption;
+      language?: QueryLanguageOption;
+      normalizedQueries?: string[];
+      includeCustomRules?: boolean;
+    } = {},
   ): AskSearchResult {
+    const detectedLanguage = resolveQueryLanguage(query, options.language);
+    const localNormalizedQueries = buildLocalKoreanQueryVariants(query, detectedLanguage);
+    const aiNormalizedQueries = sanitizeNormalizedQueries(options.normalizedQueries);
+    const normalizedQueries = unique([...localNormalizedQueries, ...aiNormalizedQueries]).slice(0, 10);
+    const translationSource = getTranslationSource(detectedLanguage, localNormalizedQueries, aiNormalizedQueries);
+    const diagnostics = { detectedLanguage, normalizedQueries, translationSource };
     const stats = this.db.getStats();
     if (stats.articleCount === 0) {
-      return { articles: [], expandedKeywords: [], errorCode: "LOCAL_DB_EMPTY" };
+      return { articles: [], expandedKeywords: [], errorCode: "LOCAL_DB_EMPTY", ...diagnostics };
     }
 
     const safeLimit = clampSearchCandidateLimit(limit);
@@ -37,12 +60,14 @@ export class SearchService {
     const group = options.group ?? options.scope;
     const campus = options.campus;
     const scopedQuery = buildScopedSearchQuery(query, { group, campus });
+    const normalizedScopedQueries = normalizedQueries.map((value) => buildScopedSearchQuery(value, { group, campus }));
+    const rankingQueryText = normalizedQueries.length > 0 ? `${query} ${normalizedQueries.join(" ")}` : query;
     const operatorQuery = parseSearchOperators(query);
     const searchPoolLimit = getRerankPoolLimit(safeLimit, 1);
     if (operatorQuery.hasOperators) {
       const result = this.db.searchArticlesByBooleanQuery(query, searchPoolLimit);
       const pool = filterCustomArticles(result.articles, includeCustomRules);
-      const ranked = rankArticlesForQuestion(pool, query, result.highlightTerms, safeLimit, { group, campus });
+      const ranked = rankArticlesForQuestion(pool, rankingQueryText, result.highlightTerms, safeLimit, { group, campus });
       return {
         articles: ranked.articles,
         expandedKeywords: result.highlightTerms,
@@ -50,15 +75,16 @@ export class SearchService {
         candidateLimitReached: ranked.candidateLimitReached,
         searchedCandidateCount: ranked.searchedCandidateCount,
         suggestedQueries: buildSuggestedQueries(query, ranked.articles),
+        ...diagnostics,
       };
     }
 
-    const expanded = expandQuery(scopedQuery);
+    const expanded = expandQuery(normalizedScopedQueries[0] ?? scopedQuery);
     if (!expanded.ftsQuery) {
-      return { articles: [], expandedKeywords: [], errorCode: "NO_RELEVANT_ARTICLES" };
+      return { articles: [], expandedKeywords: [], errorCode: "NO_RELEVANT_ARTICLES", ...diagnostics };
     }
 
-    const plan = createSearchQueryPlan(scopedQuery);
+    const plan = createSearchQueryPlan(scopedQuery, normalizedScopedQueries);
     const expandedVariants = plan.variants.map((variant) => expandQuery(variant));
     const rankingQueryInfo = removeManualScopeRequiredTerms(
       mergeExpandedQueries(expanded, expandedVariants, plan.isCompound),
@@ -112,7 +138,7 @@ export class SearchService {
     }
 
     const sourceFilteredArticles = filterCustomArticles(articles, includeCustomRules);
-    const ranked = rankArticlesForQuestion(sourceFilteredArticles, query, rankingQueryInfo, safeLimit, { group, campus });
+    const ranked = rankArticlesForQuestion(sourceFilteredArticles, rankingQueryText, rankingQueryInfo, safeLimit, { group, campus });
     const suggestedQueries = buildSuggestedQueries(query, ranked.articles, plan.variants);
     return {
       articles: ranked.articles,
@@ -122,6 +148,7 @@ export class SearchService {
       searchedCandidateCount: ranked.searchedCandidateCount,
       routingNotes: plan.routingNotes,
       suggestedQueries,
+      ...diagnostics,
     };
   }
 
@@ -216,6 +243,30 @@ function getRerankPoolLimit(limit: number, variantCount: number): number {
 function filterCustomArticles(articles: ArticleRecord[], includeCustomRules: boolean): ArticleRecord[] {
   if (includeCustomRules) return articles;
   return articles.filter((article) => (article.source_type ?? article.sourceType ?? "official") !== "custom");
+}
+
+function sanitizeNormalizedQueries(values?: string[]): string[] {
+  return unique(
+    (values ?? [])
+      .map((value) => value.replace(/\s+/g, " ").trim())
+      .filter((value) => value.length >= 2),
+  ).slice(0, 6);
+}
+
+function getTranslationSource(
+  detectedLanguage: ReturnType<typeof resolveQueryLanguage>,
+  localQueries: string[],
+  aiQueries: string[],
+): TranslationSource {
+  if (detectedLanguage === "ko") return "none";
+  if (localQueries.length > 0 && aiQueries.length > 0) return "mixed";
+  if (aiQueries.length > 0) return "ai-normalizer";
+  if (localQueries.length > 0) return "local-glossary";
+  return "none";
+}
+
+function unique(values: string[]): string[] {
+  return Array.from(new Set(values.filter(Boolean)));
 }
 
 function removeManualScopeRequiredTerms(

@@ -1,10 +1,20 @@
 import { GoogleGenAI } from "@google/genai";
-import type { ArticleRecord, GeneratedAnswer, AiModelId, AiTokenUsage, QueryCampusOption, QueryGroupOption } from "../../shared/types";
+import type {
+  ArticleRecord,
+  GeneratedAnswer,
+  AiModelId,
+  AiTokenUsage,
+  QueryCampusOption,
+  QueryGroupOption,
+  QueryLanguageOption,
+  DetectedQueryLanguage,
+} from "../../shared/types";
 import { AppError } from "../../shared/errors";
 import { buildPolicyAnswerPrompt } from "./prompt-builder";
 import { parseAndValidateAnswer } from "./answer-validator";
 import { ANSWER_RESPONSE_SCHEMA } from "./response-parser";
 import { assertValidConnectionTestResponse, GEMINI_CONNECTION_TEST_PROMPT } from "./gemini-connection-test";
+import { buildSearchQueryNormalizerPrompt, parseNormalizedSearchQueries } from "./search-query-normalizer";
 
 export class GeminiClient {
   async testConnection(apiKey: string, modelId: AiModelId): Promise<AiTokenUsage> {
@@ -25,6 +35,8 @@ export class GeminiClient {
     articles,
     group,
     campus,
+    language,
+    detectedLanguage,
     includeCustomRules,
   }: {
     apiKey: string;
@@ -33,11 +45,29 @@ export class GeminiClient {
     articles: ArticleRecord[];
     group?: QueryGroupOption;
     campus?: QueryCampusOption;
+    language?: QueryLanguageOption;
+    detectedLanguage?: DetectedQueryLanguage;
     includeCustomRules?: boolean;
   }): Promise<GeneratedAnswer> {
-    const prompt = buildPolicyAnswerPrompt({ question, articles, group, campus, includeCustomRules });
+    const prompt = buildPolicyAnswerPrompt({ question, articles, group, campus, language, detectedLanguage, includeCustomRules });
     const result = await this.generateRaw({ apiKey, modelId, prompt, responseMimeType: "application/json" });
     return { ...parseAndValidateAnswer(result.text, articles), usage: result.usage };
+  }
+
+  async normalizeSearchQuery({
+    apiKey,
+    modelId,
+    question,
+    language,
+  }: {
+    apiKey: string;
+    modelId: AiModelId;
+    question: string;
+    language: DetectedQueryLanguage;
+  }): Promise<{ queries: string[]; usage: AiTokenUsage }> {
+    const prompt = buildSearchQueryNormalizerPrompt({ question, language });
+    const result = await this.generateRaw({ apiKey, modelId, prompt, responseMimeType: "text/plain" });
+    return { ...parseNormalizedSearchQueries(result.text), usage: result.usage };
   }
 
   private async generateRaw({

@@ -2,16 +2,46 @@ import { ipcMain } from "electron";
 import type { GenerateAnswerRequest, SearchArticlesRequest } from "../../shared/types";
 import type { IpcContext } from "./types";
 import type { IpcHandlerWrap } from "./wrap";
+import { isNonKoreanLanguage, resolveQueryLanguage } from "../search/query-language";
 
 export function registerAskIpc(context: IpcContext, wrap: IpcHandlerWrap): void {
   ipcMain.handle("ask:search", async (_event, request: SearchArticlesRequest) =>
-    wrap(() =>
-      context.searchService.searchForQuestion(
+    wrap(async () => {
+      const detectedLanguage = resolveQueryLanguage(request.query, request.language);
+      const aiNormalizedQueries: string[] = [];
+      const normalizationNotes: string[] = [];
+
+      if (isNonKoreanLanguage(detectedLanguage)) {
+        try {
+          const normalized = await context.geminiClient.normalizeSearchQuery({
+            apiKey: context.apiKeyStore.load(),
+            modelId: context.settingsStore.getModelId(),
+            question: request.query,
+            language: detectedLanguage,
+          });
+          aiNormalizedQueries.push(...normalized.queries);
+          context.settingsStore.addUsage(normalized.usage);
+        } catch {
+          normalizationNotes.push("AI 검색 정규화를 사용할 수 없어 로컬 다국어 용어집만 사용했습니다.");
+        }
+      }
+
+      const result = context.searchService.searchForQuestion(
         request.query,
         request.limit ?? context.settingsStore.getRagSettings().searchCandidateLimit,
-        { group: request.group ?? request.scope, campus: request.campus, includeCustomRules: request.includeCustomRules },
-      ),
-    ),
+        {
+          group: request.group ?? request.scope,
+          campus: request.campus,
+          language: request.language,
+          normalizedQueries: aiNormalizedQueries,
+          includeCustomRules: request.includeCustomRules,
+        },
+      );
+      if (normalizationNotes.length > 0) {
+        result.routingNotes = [...normalizationNotes, ...(result.routingNotes ?? [])].slice(0, 4);
+      }
+      return result;
+    }),
   );
   ipcMain.handle("ask:generate", async (_event, request: GenerateAnswerRequest) =>
     wrap(async () => {
@@ -27,6 +57,8 @@ export function registerAskIpc(context: IpcContext, wrap: IpcHandlerWrap): void 
         articles,
         group: request.group ?? request.scope,
         campus: request.campus,
+        language: request.language,
+        detectedLanguage: request.detectedLanguage,
         includeCustomRules: request.includeCustomRules,
       });
       if (request.articleIds.length > articles.length) {

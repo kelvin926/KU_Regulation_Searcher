@@ -1,19 +1,32 @@
-import type { ArticleRecord, QueryCampusOption, QueryGroupOption } from "../../shared/types";
+import type {
+  ArticleRecord,
+  DetectedQueryLanguage,
+  QueryCampusOption,
+  QueryGroupOption,
+  QueryLanguageOption,
+} from "../../shared/types";
+import { resolveQueryLanguage } from "../search/query-language";
 
 export function buildPolicyAnswerPrompt({
   question,
   articles,
   group,
   campus,
+  language,
+  detectedLanguage,
   includeCustomRules,
 }: {
   question: string;
   articles: ArticleRecord[];
   group?: QueryGroupOption;
   campus?: QueryCampusOption;
+  language?: QueryLanguageOption;
+  detectedLanguage?: DetectedQueryLanguage;
   includeCustomRules?: boolean;
 }): string {
   const articleText = articles.map(formatArticleForPrompt).join("\n\n---\n\n");
+  const answerLanguage = resolveAnswerLanguage(question, language, detectedLanguage);
+  const noEvidencePrefix = noEvidencePrefixForLanguage(answerLanguage);
   const customEvidenceNote = articles.some((article) => (article.source_type ?? article.sourceType ?? "official") === "custom")
     ? "\n- 제공 조항 중 [커스텀 규정]은 사용자가 직접 입력한 학과 내규/부서 내규입니다. 공식 규정과 커스텀 규정이 함께 있으면 둘을 구분해서 설명하고, 충돌 가능성이 있으면 확인 필요하다고 말한다."
     : "";
@@ -22,14 +35,17 @@ export function buildPolicyAnswerPrompt({
   }`;
   return `역할: 고려대학교 규정 질의 보조자.
 
+답변 언어: ${formatAnswerLanguage(answerLanguage)}
+
 원칙:
 - 제공 조항만 근거로 답한다. 근거 밖 추측, 일반 상식 보충, 임의 조문 생성은 금지한다.
-- 답변은 한국어 존댓말로 간결하게 쓴다. 여러 소속, 대학원, 학과 내규가 다르면 범위별로 나누어 쓴다.
+- ${buildLanguageInstruction(answerLanguage)}
 - 단정이 필요할 때도 "제공된 고려대 규정 조항 기준"이라고 표현한다.
 - answer에는 규정명과 실제 조문번호를 함께 적는다. 예: 학사운영 규정 제23조, 대학원학칙 일반대학원 시행세칙 제17조.
+- ${buildCitationLanguageInstruction(answerLanguage)}
 - ARTICLE_ID는 앱 내부 식별자다. ARTICLE_ID 숫자를 조문번호처럼 "제1234조"로 절대 쓰지 않는다.
 - used_article_ids에는 실제 사용한 ARTICLE_ID 숫자만 넣고, answer 본문에는 ARTICLE_ID를 쓰지 않는다.
-- 근거가 부족하면 answer를 "[근거 없음] ..."으로 시작하고 missing_evidence=true, used_article_ids=[]로 둔다.
+- 근거가 부족하면 answer를 "${noEvidencePrefix} ..."으로 시작하고 missing_evidence=true, used_article_ids=[]로 둔다.
 - missing_evidence=false이면 used_article_ids에 실제 사용한 ARTICLE_ID를 1개 이상 넣는다.
 - 질문 범위가 넓어 제공 조항만으로 전체 소속, 전체 학과, 전체 대학원을 빠짐없이 보장할 수 없으면 그 한계를 answer와 warnings에 밝힌다.
 - 제공 조항 중 적용 범위가 질문과 다른 조항은 직접 근거로 쓰지 않는다.
@@ -56,8 +72,61 @@ ${customEvidenceNote}
 ${question}
 ${scopeNote}
 
-제공 조항:
+  제공 조항:
 ${articleText}`;
+}
+
+function resolveAnswerLanguage(
+  question: string,
+  option?: QueryLanguageOption,
+  detectedLanguage?: DetectedQueryLanguage,
+): DetectedQueryLanguage {
+  if (option && option !== "auto") return option;
+  return detectedLanguage ?? resolveQueryLanguage(question, option);
+}
+
+function formatAnswerLanguage(language: DetectedQueryLanguage): string {
+  switch (language) {
+    case "en":
+      return "English";
+    case "zh":
+      return "中文";
+    case "ko":
+      return "한국어";
+  }
+}
+
+function noEvidencePrefixForLanguage(language: DetectedQueryLanguage): string {
+  switch (language) {
+    case "en":
+      return "[No evidence]";
+    case "zh":
+      return "[无依据]";
+    case "ko":
+      return "[근거 없음]";
+  }
+}
+
+function buildLanguageInstruction(language: DetectedQueryLanguage): string {
+  switch (language) {
+    case "en":
+      return 'Write the answer in clear English for an international student. If there is evidence, start with "Based on the provided KU regulation articles," and keep the explanation concise.';
+    case "zh":
+      return "用中文回答。若用户使用繁体字，优先使用繁体中文；否则使用简体中文。若有依据，开头应说明“根据所提供的高丽大学规定条文”。回答要简洁。";
+    case "ko":
+      return "답변은 한국어 존댓말로 간결하게 쓴다. 여러 소속, 대학원, 학과 내규가 다르면 범위별로 나누어 쓴다.";
+  }
+}
+
+function buildCitationLanguageInstruction(language: DetectedQueryLanguage): string {
+  switch (language) {
+    case "en":
+      return "Even in English answers, keep Korean regulation names and article numbers exactly as written, and add a short English gloss in parentheses when helpful. Example: 학사운영 규정 제23조 (Academic Operations Regulation Article 23).";
+    case "zh":
+      return "即使用中文回答，也要保留韩文规定名称和条文编号；必要时可在括号中加简短中文说明。例：학사운영 규정 제23조（学士运营规定第23条）。";
+    case "ko":
+      return "규정명과 조문번호는 한국어 원문 그대로 쓴다.";
+  }
 }
 
 function formatArticleForPrompt(article: ArticleRecord): string {

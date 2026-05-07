@@ -285,7 +285,10 @@ export function expandQuery(input: string): ExpandedQuery {
     }
   }
 
-  if (/(빌리|빌려|빌릴|대관|대여|사용신청)/u.test(compactInput) && /(강의실|회의실|강당|공간|시설|장소|운동장|기기|장비|물품|도서|자료)/u.test(compactInput)) {
+  if (
+    /(빌려|빌릴|빌리고|빌리는|빌리려|대관|대여|사용신청)/u.test(compactInput) &&
+    /(강의실|회의실|강당|공간|시설|장소|운동장|기기|장비|물품|도서|자료)/u.test(compactInput)
+  ) {
     for (const keyword of ["대관", "대여", "사용", "공간대관", "시설대관", "장소사용", "시설사용", "사용신청"]) {
       addSearchKeyword(keywords, keyword);
       addOptionalTerm(optionalTerms, keyword);

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { ArticleRecord } from "../../shared/types";
 import { rankArticlesForQuestion } from "./article-ranker";
 import { expandQuery } from "./query-expander";
+import { buildLocalKoreanQueryVariants } from "./multilingual-glossary";
 import { createSearchQueryPlan, mergeExpandedQueries } from "./query-planner";
 
 describe("search quality reranking", () => {
@@ -404,6 +405,38 @@ describe("search quality reranking", () => {
     expect(result.articles.find((article) => article.id === 4)?.relevance?.group).toBe("low_relevance");
   });
 
+  it("uses multilingual normalized variants for English and Chinese complex questions", () => {
+    const englishWithdrawal = rankWithSearchPlanAndVariants(
+      [
+        createArticle(1, "대학원학칙 일반대학원 시행세칙", "제19조", "자퇴", "자퇴를 하려는 자는 자퇴원을 제출하여야 한다."),
+        createArticle(2, "고려대학교 BK21 FOUR", "제13조", "참여대학원생에 대한 지원", "자퇴 등으로 자격 요건이 변동되면 지원액을 반환한다."),
+      ],
+      "How can a graduate student withdraw from the university?",
+      buildLocalKoreanQueryVariants("How can a graduate student withdraw from the university?", "en"),
+      2,
+    );
+    const chineseTransition = rankWithSearchPlanAndVariants(
+      [
+        createArticle(
+          1,
+          "학사운영 규정",
+          "제29조",
+          "군입대 휴학",
+          "입영(소집)취소 또는 연기 등으로 군입대 사유가 소멸된 때에는 7일 이내에 군입대 휴학 신청을 취소하여야 한다.",
+        ),
+        createArticle(2, "일반 Tutorial 운영 지침", "제6조", "신청 및 승인 절차", "Tutorial 신청서와 회의록을 제출한다."),
+      ],
+      "未来移动学科学生服兵役休学后想转为普通休学，应该怎么处理？",
+      buildLocalKoreanQueryVariants("未来移动学科学生服兵役休学后想转为普通休学，应该怎么处理？", "zh"),
+      2,
+    );
+
+    expect(englishWithdrawal.articles[0].id).toBe(1);
+    expect(englishWithdrawal.articles[0].relevance?.group).toBe("primary");
+    expect(chineseTransition.articles[0].id).toBe(1);
+    expect(chineseTransition.articles[0].relevance?.group).toBe("primary");
+  });
+
   it("expands colloquial expressions into KU regulation terms", () => {
     const facility = expandQuery("강의실을 빌리려면 사용료를 내야 하나요?");
     const tuition = expandQuery("학비 감면이나 장학금 지급 기준을 알려줘");
@@ -530,4 +563,12 @@ function rankWithSearchPlan(articles: ArticleRecord[], query: string, limit: num
   const base = expandQuery(query);
   const variants = plan.variants.map((variant) => expandQuery(variant));
   return rankArticlesForQuestion(articles, query, mergeExpandedQueries(base, variants, plan.isCompound), limit);
+}
+
+function rankWithSearchPlanAndVariants(articles: ArticleRecord[], query: string, normalizedQueries: string[], limit: number) {
+  const plan = createSearchQueryPlan(query, normalizedQueries);
+  const base = expandQuery(normalizedQueries[0] ?? query);
+  const variants = plan.variants.map((variant) => expandQuery(variant));
+  const rankingQuery = normalizedQueries.length > 0 ? `${query} ${normalizedQueries.join(" ")}` : query;
+  return rankArticlesForQuestion(articles, rankingQuery, mergeExpandedQueries(base, variants, plan.isCompound), limit);
 }

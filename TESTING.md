@@ -10,7 +10,7 @@ Branch: `main`
 | Check | Result |
 | --- | --- |
 | `npm install` | Passed |
-| `npm test` | Passed, 14 files / 68 tests |
+| `npm test` | Passed, 17 files / 79 tests |
 | `npm run eval:local-search:complex` | Passed, 10,000 / 10,000 generated natural-language complex local DB questions |
 | `npm run build` | Passed |
 | `npm run rebuild:electron` | Passed |
@@ -22,9 +22,9 @@ Branch: `main`
 
 | Check | Result |
 | --- | --- |
-| Installer file | `release\KU-Regulation-Setup-0.9.1.1.exe` |
-| Installer size | 179,053,703 bytes, about 170.8 MiB |
-| SHA-256 | `066BC0D1A9AB6ACDAE1ABFD3185FD9A1C9EAB54089DCFF3FC5A6466F29F484C5` |
+| Installer file | `release\KU-Regulation-Setup-0.9.2.exe` |
+| Installer size | 179,057,822 bytes, about 170.8 MiB |
+| SHA-256 | `9375272A0832617935DD294F6F9E436AF492ADB319161E4B49D6CDACBA562F6F` |
 | Install type | Per-user NSIS install |
 | Admin permission | Not required in silent install validation |
 | Install/update success | Passed, exit code 0 |
@@ -36,8 +36,8 @@ Branch: `main`
 | Installer icon | Verified by extracting the associated icon from the setup exe |
 | Packaged exe icon | Verified by extracting the associated icon from `release\win-unpacked\KU Regulation Searcher.exe` |
 | Installed exe icon | Verified by extracting the associated icon from the installed exe |
-| Installed version | `KU Regulation Searcher 0.9.1-1` in the current-user uninstall registry |
-| App display version | `0.9.1.1` embedded in the renderer bundle |
+| Installed version | `KU Regulation Searcher 0.9.2` in the current-user uninstall registry |
+| App display version | `0.9.2` embedded in the renderer bundle |
 | SmartScreen | Possible because the installer is unsigned |
 
 Note: this PC already had a pre-0.4.0 install under `%LOCALAPPDATA%\Programs\KU Regulation Assistant`. Updating in place keeps that installation folder for compatibility, but the visible app name, exe name, window title, shortcut name, and icon are `KU Regulation Searcher`. Fresh per-user installs use the current product name.
@@ -55,6 +55,24 @@ Note: this PC already had a pre-0.4.0 install under `%LOCALAPPDATA%\Programs\KU 
 | Regulation list cache | `%APPDATA%\KU Regulation Searcher\config\regulation-targets.json` exists |
 | Legacy migration | `%APPDATA%\KU Regulation Assistant\` is copied to the new 0.4.0 path when needed |
 | Repo data leakage | No repo-root `data`, `auth`, `logs`, `.env`, sqlite, or encrypted session files were created |
+
+## 0.9.2 validation notes
+
+- 0.9.2 adds multilingual regulation questions for Korean, English, and Chinese while keeping the stored official/custom regulation text in Korean.
+- The ask screen now has an independent answer-language control: automatic detection, Korean, English, and Chinese.
+- English and Chinese questions are detected locally, expanded through a Korea University regulation glossary, and searched against Korean regulation terms. When a Gemini API key is available, non-Korean questions can also receive additional Korean search-query variants from the AI normalizer; failures fall back to the local glossary.
+- AI answer prompts now follow the detected/requested answer language and use language-specific no-evidence prefixes: `[근거 없음]`, `[No evidence]`, and `[无依据]`.
+- English/Chinese answers preserve Korean regulation names and article numbers, with short translated explanations where useful.
+- The `모빌리티` substring is no longer misread as the Korean rental verb `빌리다`, so future-mobility questions do not drift into rental/scholarship-loan articles.
+- Representative full local DB checks:
+  - `Can undergraduate students take military leave in their first semester?`: ranked `학사운영 규정 제29조`, `제30조`, `제24조`, `제26조`, and `제25조` at the top.
+  - `How can a graduate student withdraw from the university?`: ranked `대학원학칙 제14조`, `대학원학칙 일반대학원 시행세칙 제19조`, and related graduate-school withdrawal/removal articles.
+  - `What is the English lecture obligation for newly appointed professors?`: ranked `외국어강의에 관한 규정` and `외국어강의 의무 면제 지침` articles.
+  - `What is the difference between the Seoul student council and Sejong student council?`: ranked `총학생회칙` and `세종캠퍼스 사무분장 규정` articles.
+  - `未来移动学科学生服兵役休学后想转为普通休学，应该怎么处理？`: ranked `학사운영 규정 제29조`, `제24조`, `제26조`, `제25조`, and `제28조`.
+  - `研究生如何申请退学？`: ranked graduate-school withdrawal/removal articles.
+- The 10,000-question complex Korean search evaluation passed 10,000/10,000 checks: article lookup 1,770/1,770, title lookup 1,500/1,500, procedure 1,700/1,700, duration 646/646, eligibility 1,484/1,484, amount 700/700, evidence check 1,200/1,200, exception check 1,000/1,000.
+- The 0.9.2 installer was silently installed locally with exit code 0, and the installed app launched successfully with a `KU Regulation Searcher` window.
 
 ## 0.9.1.1 validation notes
 

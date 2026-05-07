@@ -8,11 +8,15 @@ export interface SearchQueryPlan {
 
 const MAX_VARIANTS = 10;
 
-export function createSearchQueryPlan(query: string): SearchQueryPlan {
+export function createSearchQueryPlan(query: string, extraVariants: string[] = []): SearchQueryPlan {
   const compactQuery = compact(query);
   const variants = new Set<string>();
   const routingNotes = new Set<string>();
   addVariant(variants, query);
+  for (const variant of extraVariants) addVariant(variants, variant);
+  if (extraVariants.length > 0) {
+    routingNotes.add("다국어 질문을 한국어 규정 검색어로 보정해 함께 검색했습니다.");
+  }
 
   if (!hasDirectRegulationName(query)) {
     addGenericRoutedVariants(variants, routingNotes, query, compactQuery);

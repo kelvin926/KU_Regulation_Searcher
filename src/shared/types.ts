@@ -77,6 +77,15 @@ export type QueryCampusOption = (typeof QUERY_CAMPUS_OPTION_VALUES)[number];
 
 export type QueryScopeOption = QueryGroupOption;
 
+export const QUERY_LANGUAGE_OPTION_VALUES = ["auto", "ko", "en", "zh"] as const;
+export type QueryLanguageOption = (typeof QUERY_LANGUAGE_OPTION_VALUES)[number];
+
+export const DETECTED_QUERY_LANGUAGE_VALUES = ["ko", "en", "zh"] as const;
+export type DetectedQueryLanguage = (typeof DETECTED_QUERY_LANGUAGE_VALUES)[number];
+
+export const TRANSLATION_SOURCE_VALUES = ["none", "local-glossary", "ai-normalizer", "mixed"] as const;
+export type TranslationSource = (typeof TRANSLATION_SOURCE_VALUES)[number];
+
 export interface CustomRegulationInput {
   regulationName: string;
   customScope: QueryGroupOption;
@@ -181,6 +190,7 @@ export interface SearchArticlesRequest {
   scope?: QueryGroupOption;
   group?: QueryGroupOption;
   campus?: QueryCampusOption;
+  language?: QueryLanguageOption;
   includeCustomRules?: boolean;
 }
 
@@ -192,6 +202,9 @@ export interface AskSearchResult {
   searchedCandidateCount?: number;
   routingNotes?: string[];
   suggestedQueries?: string[];
+  detectedLanguage?: DetectedQueryLanguage;
+  normalizedQueries?: string[];
+  translationSource?: TranslationSource;
 }
 
 export interface GenerateAnswerRequest {
@@ -200,6 +213,8 @@ export interface GenerateAnswerRequest {
   scope?: QueryGroupOption;
   group?: QueryGroupOption;
   campus?: QueryCampusOption;
+  language?: QueryLanguageOption;
+  detectedLanguage?: DetectedQueryLanguage;
   includeCustomRules?: boolean;
 }
 

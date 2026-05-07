@@ -155,18 +155,25 @@ function detectScope(compactQuery: string): QueryScope {
   if (EXPLICIT_GRADUATE_SCOPE.test(compactQuery)) return "일반대학원";
   if (compactQuery.includes("서울캠퍼스") || compactQuery.includes("안암캠퍼스") || compactQuery.includes("서울총학생회")) return "서울캠퍼스";
   if (compactQuery.includes("세종캠퍼스")) return "세종캠퍼스";
-  if (/학부(생|학생|재학생|과정|휴학|군입대|복학|자퇴|졸업|장학금|수강|입학|편입|규정|학칙)/u.test(compactQuery) || compactQuery === "학부") {
-    return "학부";
-  }
-  if (/(학위청구논문|학위논문|논문심사|논문지도교수|지도교수|수료연구등록)/u.test(compactQuery)) {
-    return "일반대학원";
-  }
   if (compactQuery.includes("직원조교") || compactQuery.includes("직원·조교")) return "직원·조교";
   if (compactQuery.includes("조교")) return "조교";
   if (compactQuery.includes("교원") || (compactQuery.includes("교수") && !/(지도교수|논문지도교수)/u.test(compactQuery))) {
     return "교원";
   }
   if (compactQuery.includes("직원")) return "직원";
+  if (
+    ((compactQuery.includes("학부") &&
+      !compactQuery.includes("대학부") &&
+      !compactQuery.includes("대학부설")) ||
+      /학부(생|학생|재학생|과정|휴학|군입대|복학|자퇴|졸업|장학금|수강|입학|편입|규정|학칙)/u.test(compactQuery) ||
+      compactQuery === "학부") &&
+    !EXPLICIT_GRADUATE_SCOPE.test(compactQuery)
+  ) {
+    return "학부";
+  }
+  if (/(학위청구논문|학위논문|논문심사|논문지도교수|지도교수|수료연구등록)/u.test(compactQuery)) {
+    return "일반대학원";
+  }
   if (/(학과|전공)/u.test(compactQuery) && !EXPLICIT_GRADUATE_SCOPE.test(compactQuery)) return "학부";
   if (compactQuery.includes("학생")) return "학생";
   return "unknown";
@@ -197,7 +204,11 @@ function detectTopics(compactQuery: string): string[] {
     topics.add("등록금");
     topics.add("수업료");
   }
-  if (/(빌리|빌려|대관|대여|공간|시설사용|장소사용|사용신청)/u.test(compactQuery)) {
+  if (
+    /(대관|대여|공간|시설사용|장소사용|사용신청)/u.test(compactQuery) ||
+    (/(빌려|빌릴|빌리고|빌리는|빌리려)/u.test(compactQuery) &&
+      /(강의실|회의실|강당|공간|시설|장소|운동장|기기|장비|물품|도서|자료)/u.test(compactQuery))
+  ) {
     topics.add("대관");
     topics.add("대여");
   }

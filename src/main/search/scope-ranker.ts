@@ -702,10 +702,16 @@ function classifyArticle(
   const directlyAskedRegulation = isDirectRegulationAsked(regulationName, context);
   if (outOfScope && !directlyAskedRegulation) return "out_of_scope";
   const directEvidenceMatch = hasDirectEvidenceMatch(regulationName, title, context);
+  const isMilitaryLeaveQuery =
+    context.queryIntent.topics.includes("군입대") ||
+    context.queryIntent.topics.includes("군입대휴학") ||
+    /(군입대|군입대휴학|군휴학|입대휴학|군복무|병역|입영|소집)/u.test(context.queryCompact);
+  const hasMilitaryLeaveEvidence = /(휴학|군입대|군입대휴학|군휴학|입대휴학|군복무|병역|입영|소집)/u.test(all);
   const isEnglishLectureQuery = /(영강|영어강의|외국어강의|외국어강좌)/u.test(context.queryCompact);
   const hasEnglishLectureEvidence = /(영어강의|외국어강의|외국어강좌|영강)/u.test(all);
   const isStudentCouncilQuery = /(총학생회|학생자치|학생회칙)/u.test(context.queryCompact);
   const hasStudentCouncilEvidence = /(총학생회|학생자치|학생회)/u.test(all);
+  if (isMilitaryLeaveQuery && !hasMilitaryLeaveEvidence) return "low_relevance";
   if (directEvidenceMatch && score >= 20) return "primary";
   if (directEvidenceMatch) return "related";
   if (isEnglishLectureQuery && !hasEnglishLectureEvidence) return "low_relevance";
