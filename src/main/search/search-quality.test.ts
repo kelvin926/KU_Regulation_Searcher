@@ -427,6 +427,61 @@ describe("search quality reranking", () => {
     expect(plan.variants).toEqual(expect.arrayContaining(["일반대학원 지도교수 신청 제출 원서 허가 승인 절차"]));
   });
 
+  it("combines manual campus and group scopes for official regulations", () => {
+    const articles = [
+      createArticle(1, "고려대학교 학칙", "제51조", "학생자치활동과 그 지원", "총학생회 등 학생자치단체를 둔다."),
+      createArticle(2, "세종캠퍼스 사무분장 규정", "제21조", "학생생활지원팀", "세종캠퍼스 학부 학생회 지원 및 총학생회 행사를 담당한다."),
+      createArticle(3, "대학원학칙 일반대학원 시행세칙", "제17조", "휴학기간", "대학원 휴학연한은 석사과정 2년으로 한다."),
+      createArticle(4, "서울캠퍼스 공간대관규정", "제6조", "대관 신청", "서울캠퍼스 공간 대관 신청 절차를 정한다."),
+    ];
+
+    const sejongResult = rankArticlesForQuestion(
+      articles,
+      "학부생 총학생회 지원은 어디서 담당하나요?",
+      expandQuery("학부생 총학생회 지원은 어디서 담당하나요?"),
+      4,
+      { campus: "sejong", group: "undergraduate" },
+    );
+    const seoulResult = rankArticlesForQuestion(
+      articles,
+      "학부생 총학생회 지원은 어디서 담당하나요?",
+      expandQuery("학부생 총학생회 지원은 어디서 담당하나요?"),
+      4,
+      { campus: "seoul", group: "undergraduate" },
+    );
+
+    expect(sejongResult.articles[0].id).toBe(2);
+    expect(sejongResult.articles.find((article) => article.id === 3)?.relevance?.group).toBe("out_of_scope");
+    expect(seoulResult.articles.find((article) => article.id === 2)?.relevance?.group).toBe("out_of_scope");
+    expect(seoulResult.articles.find((article) => article.id === 1)?.relevance?.group).not.toBe("out_of_scope");
+  });
+
+  it("combines custom regulation campus and group metadata", () => {
+    const sejongCustom = {
+      ...createArticle(1, "미래모빌리티학과 내규", "제4조", "휴학", "학부생의 군입대 휴학 및 일반휴학 전환 절차를 정한다."),
+      source_type: "custom" as const,
+      custom_scope: "undergraduate" as const,
+      custom_campus: "sejong" as const,
+    };
+    const seoulCustom = {
+      ...createArticle(2, "서울캠퍼스 학부 내규", "제4조", "휴학", "학부생의 군입대 휴학 및 일반휴학 전환 절차를 정한다."),
+      source_type: "custom" as const,
+      custom_scope: "undergraduate" as const,
+      custom_campus: "seoul" as const,
+    };
+
+    const result = rankArticlesForQuestion(
+      [seoulCustom, sejongCustom],
+      "미래모빌리티학과 학부생이 군휴학을 일반휴학으로 바꾸려면?",
+      expandQuery("미래모빌리티학과 학부생이 군휴학을 일반휴학으로 바꾸려면?"),
+      2,
+      { campus: "sejong", group: "undergraduate" },
+    );
+
+    expect(result.articles[0].id).toBe(1);
+    expect(result.articles[0].relevance?.reasons).toEqual(expect.arrayContaining(["커스텀 규정 캠퍼스 일치", "커스텀 규정 범위 일치"]));
+  });
+
   it("keeps broad leave-duration questions focused on high-authority rules first", () => {
     const result = rankArticlesForQuestion(
       [

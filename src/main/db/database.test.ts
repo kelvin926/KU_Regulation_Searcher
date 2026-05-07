@@ -79,6 +79,7 @@ describe("DatabaseService", () => {
 
     const created = db.createCustomRegulation({
       regulationName: "미래모빌리티학과 운영 내규",
+      customCampus: "sejong",
       customScope: "undergraduate",
       customNote: "학과 공지",
       body: "제1조(군휴학 전환)\n군휴학 사유가 소멸된 학생은 일반휴학 전환을 신청한다.",
@@ -90,10 +91,12 @@ describe("DatabaseService", () => {
       regulation_name: "미래모빌리티학과 운영 내규",
       source_type: "custom",
       custom_scope: "undergraduate",
+      custom_campus: "sejong",
     });
 
     const updated = db.updateCustomRegulation(created.id, {
       regulationName: "미래모빌리티학과 학과 내규",
+      customCampus: "sejong",
       customScope: "undergraduate",
       customNote: "수정본",
       body: "제1조(일반휴학 전환)\n입영 취소 시 일반휴학 전환 신청서를 제출한다.",

@@ -1,14 +1,16 @@
-import type { ArticleRecord, ArticleRelevance, ArticleRelevanceGroup, QueryScopeOption } from "../../shared/types";
+import type { ArticleRecord, ArticleRelevance, ArticleRelevanceGroup, QueryCampusOption, QueryGroupOption } from "../../shared/types";
 import { normalizeArticleNo } from "../crawler/regulation-parser";
 import type { ExpandedQuery } from "./query-expander";
 import { compact, parseQueryIntent, type ParsedQueryIntent, type QueryScope } from "./query-intent";
-import { queryScopeFromOption } from "./query-scope-options";
+import { queryCampusFromOption, queryGroupFromOption } from "./query-scope-options";
 
 export interface ScopeRankInput {
   query: string;
   queryInfo: readonly string[] | ExpandedQuery;
   limit: number;
-  scope?: QueryScopeOption;
+  group?: QueryGroupOption;
+  campus?: QueryCampusOption;
+  scope?: QueryGroupOption;
 }
 
 export interface ScopeRankResult {
@@ -24,6 +26,7 @@ interface RankingContext {
   requiredTerms: string[];
   optionalTerms: string[];
   queryIntent: ParsedQueryIntent;
+  campusScope: QueryScope | null;
 }
 
 interface ScoreResult {
@@ -52,7 +55,7 @@ const DELETED_BODY = /삭제\s*<|^삭제$/u;
 
 export function rankArticlesByScope(articles: ArticleRecord[], input: ScopeRankInput): ScopeRankResult {
   const unique = dedupeArticles(articles);
-  const context = buildRankingContext(input.query, input.queryInfo, input.scope);
+  const context = buildRankingContext(input.query, input.queryInfo, input.group ?? input.scope, input.campus);
   const scored = unique
     .map((article, index) => scoreArticle(article, index, context))
     .sort((a, b) => b.score - a.score || a.index - b.index);
@@ -65,30 +68,43 @@ export function rankArticlesByScope(articles: ArticleRecord[], input: ScopeRankI
   };
 }
 
-function buildRankingContext(query: string, queryInfo: readonly string[] | ExpandedQuery, scope?: QueryScopeOption): RankingContext {
+function buildRankingContext(
+  query: string,
+  queryInfo: readonly string[] | ExpandedQuery,
+  group?: QueryGroupOption,
+  campus?: QueryCampusOption,
+): RankingContext {
   const applyScope = (queryIntent: ParsedQueryIntent): ParsedQueryIntent => {
-    const manualScope = queryScopeFromOption(scope);
+    const manualScope = queryGroupFromOption(group);
     return manualScope ? { ...queryIntent, scope: manualScope } : queryIntent;
   };
+  const getCampusScope = (queryIntent: ParsedQueryIntent): QueryScope | null =>
+    queryCampusFromOption(campus) ?? (isCampusScope(queryIntent.scope) ? queryIntent.scope : null);
 
   if (isExpandedQuery(queryInfo)) {
+    const rawQueryIntent = queryInfo.queryIntent ?? parseQueryIntent(query);
+    const queryIntent = applyScope(rawQueryIntent);
     return {
       query,
       queryCompact: compact(query),
       keywords: unique(queryInfo.keywords.map(compact).filter(Boolean)),
       requiredTerms: unique(queryInfo.requiredTerms.map(compact).filter(Boolean)),
       optionalTerms: unique(queryInfo.optionalTerms.map(compact).filter(Boolean)),
-      queryIntent: applyScope(queryInfo.queryIntent ?? parseQueryIntent(query)),
+      queryIntent,
+      campusScope: getCampusScope(rawQueryIntent),
     };
   }
 
+  const rawQueryIntent = parseQueryIntent(query);
+  const queryIntent = applyScope(rawQueryIntent);
   return {
     query,
     queryCompact: compact(query),
     keywords: unique(queryInfo.map(compact).filter(Boolean)),
     requiredTerms: [],
     optionalTerms: [],
-    queryIntent: applyScope(parseQueryIntent(query)),
+    queryIntent,
+    campusScope: getCampusScope(rawQueryIntent),
   };
 }
 
@@ -380,19 +396,34 @@ function scoreScope(article: ArticleRecord, context: RankingContext): { score: n
   const reasons: string[] = [];
   const sourceType = article.source_type ?? article.sourceType ?? "official";
   const customScope = article.custom_scope ?? article.customScope ?? null;
+  const customCampus = article.custom_campus ?? article.customCampus ?? null;
 
   if (sourceType === "custom") {
     score += 16;
     if (customScope) {
-      const customQueryScope = queryScopeFromOption(customScope);
+      const customQueryScope = queryGroupFromOption(customScope);
       if (customQueryScope && customQueryScope === queryScope) {
         score += 90;
         reasons.push("커스텀 규정 범위 일치");
-      } else if (customQueryScope && queryScope !== "unknown" && queryScope !== "학생" && customScope !== "other") {
+      } else if (customQueryScope && isGroupScope(queryScope) && customScope !== "other") {
         score -= 45;
       }
     }
+    if (customCampus && context.campusScope) {
+      const customCampusScope = queryCampusFromOption(customCampus);
+      if (customCampusScope && customCampusScope === context.campusScope) {
+        score += 70;
+        reasons.push("커스텀 규정 캠퍼스 일치");
+      } else if (customCampusScope && customCampus !== "other" && !isCampusComparisonQuery(directQuery)) {
+        score -= 35;
+      }
+    }
   }
+
+  const campusAdjustment = scoreCampus(article, context);
+  score += campusAdjustment.score;
+  reasons.push(...campusAdjustment.reasons);
+  if (campusAdjustment.outOfScope) outOfScope = true;
 
   if (queryScope === "학부" && /(교원|직원|조교|책임수업시간)/u.test(`${regulationName} ${title}`)) {
     score -= 90;
@@ -401,7 +432,12 @@ function scoreScope(article: ArticleRecord, context: RankingContext): { score: n
     return { score, outOfScope, reasons };
   }
 
-  if (queryScope === "학부" && isSpecificAcademicUnitRule(regulationName) && !directQueryIncludesSpecificUnit(directQuery, regulationName)) {
+  if (
+    queryScope === "학부" &&
+    isSpecificAcademicUnitRule(regulationName) &&
+    !directQueryIncludesSpecificUnit(directQuery, regulationName) &&
+    !selectedCampusMatchesRegulation(context, regulationName)
+  ) {
     score -= 90;
     outOfScope = true;
     reasons.push("학부 공통 질문과 다른 특정 과정/소속");
@@ -411,7 +447,8 @@ function scoreScope(article: ArticleRecord, context: RankingContext): { score: n
   if (
     queryScope === "학부" &&
     isSpecificUndergraduateRule(regulationName) &&
-    !directQueryIncludesSpecificUndergraduateUnit(directQuery, regulationName)
+    !directQueryIncludesSpecificUndergraduateUnit(directQuery, regulationName) &&
+    !selectedCampusMatchesRegulation(context, regulationName)
   ) {
     score -= 80;
     outOfScope = true;
@@ -459,7 +496,11 @@ function scoreScope(article: ArticleRecord, context: RankingContext): { score: n
     }
   }
 
-  if (isSpecificUnitRule(regulationName) && !directQueryIncludesSpecificUnit(directQuery, regulationName)) {
+  if (
+    isSpecificUnitRule(regulationName) &&
+    !directQueryIncludesSpecificUnit(directQuery, regulationName) &&
+    !selectedCampusMatchesRegulation(context, regulationName)
+  ) {
     score -= 40;
     outOfScope = true;
     reasons.push("특정 사업/부서/학과 내규");
@@ -468,7 +509,8 @@ function scoreScope(article: ArticleRecord, context: RankingContext): { score: n
   if (
     queryScope === "일반대학원" &&
     isSpecificAcademicUnitRule(regulationName) &&
-    !directQueryIncludesSpecificUnit(directQuery, regulationName)
+    !directQueryIncludesSpecificUnit(directQuery, regulationName) &&
+    !selectedCampusMatchesRegulation(context, regulationName)
   ) {
     score -= 80;
     outOfScope = true;
@@ -517,7 +559,6 @@ function scopePenaltyTerms(scope: QueryScope): Array<{ term: string; penalty: nu
       { term: "전문대학원", penalty: -50 },
       { term: "특수대학원", penalty: -50 },
       { term: "세종sw중심대학사업단", penalty: -60 },
-      { term: "세종캠퍼스", penalty: -50 },
     ];
   }
   if (scope === "전문·특수대학원") {
@@ -548,7 +589,73 @@ function scopePenaltyTerms(scope: QueryScope): Array<{ term: string; penalty: nu
   if (scope === "서울캠퍼스") {
     return [{ term: "세종캠퍼스", penalty: -55 }];
   }
+  if (scope === "세종캠퍼스") {
+    return [
+      { term: "서울캠퍼스", penalty: -55 },
+      { term: "안암캠퍼스", penalty: -55 },
+    ];
+  }
   return [];
+}
+
+function scoreCampus(article: ArticleRecord, context: RankingContext): { score: number; outOfScope: boolean; reasons: string[] } {
+  const campusScope = context.campusScope;
+  if (!campusScope || campusScope === "unknown" || campusScope === "학생") return { score: 0, outOfScope: false, reasons: [] };
+  const regulationName = compact(article.regulation_name);
+  const title = compact(article.article_title ?? "");
+  const body = compact(article.article_body);
+  const all = `${regulationName} ${title} ${body}`;
+  const directQuery = context.queryCompact;
+  const comparison = isCampusComparisonQuery(directQuery);
+  const reasons: string[] = [];
+  let score = 0;
+  let outOfScope = false;
+
+  if (campusScope === "서울캠퍼스") {
+    if (regulationName.includes("서울캠퍼스") || regulationName.includes("안암캠퍼스") || title.includes("서울캠퍼스")) {
+      score += 58;
+      reasons.push("서울캠퍼스 범위 일치");
+    } else if (regulationName.includes("세종캠퍼스") && !comparison && !directQuery.includes("세종캠퍼스")) {
+      score -= 55;
+      outOfScope = true;
+      reasons.push("선택 캠퍼스와 다른 세종캠퍼스 규정");
+    }
+  } else if (campusScope === "세종캠퍼스") {
+    if (all.includes("세종캠퍼스") || regulationName.includes("세종")) {
+      score += 58;
+      reasons.push("세종캠퍼스 범위 일치");
+    } else if (
+      (regulationName.includes("서울캠퍼스") || regulationName.includes("안암캠퍼스")) &&
+      !comparison &&
+      !directQuery.includes("서울캠퍼스") &&
+      !directQuery.includes("안암캠퍼스")
+    ) {
+      score -= 55;
+      outOfScope = true;
+      reasons.push("선택 캠퍼스와 다른 서울캠퍼스 규정");
+    }
+  } else if (campusScope === "기타") {
+    if (regulationName.includes("기타") || regulationName.includes("내규") || regulationName.includes("지침")) {
+      score += 24;
+      reasons.push("기타 범위 후보");
+    }
+  }
+
+  return { score, outOfScope, reasons };
+}
+
+function isCampusScope(scope: QueryScope): boolean {
+  return scope === "서울캠퍼스" || scope === "세종캠퍼스";
+}
+
+function isGroupScope(scope: QueryScope): boolean {
+  return !["unknown", "학생", "서울캠퍼스", "세종캠퍼스"].includes(scope);
+}
+
+function selectedCampusMatchesRegulation(context: RankingContext, regulationName: string): boolean {
+  if (context.campusScope === "세종캠퍼스") return regulationName.includes("세종");
+  if (context.campusScope === "서울캠퍼스") return regulationName.includes("서울") || regulationName.includes("안암");
+  return false;
 }
 
 function isCampusComparisonQuery(query: string): boolean {

@@ -1,4 +1,4 @@
-import type { AskSearchResult, ArticleRecord, QueryScopeOption, SearchPageRequest } from "../../shared/types";
+import type { AskSearchResult, ArticleRecord, QueryCampusOption, QueryGroupOption, SearchPageRequest } from "../../shared/types";
 import { AppError } from "../../shared/errors";
 import {
   HARD_MAX_RAG_ARTICLES,
@@ -10,7 +10,7 @@ import { normalizeArticleNo } from "../crawler/regulation-parser";
 import { rankArticlesForQuestion } from "./article-ranker";
 import { expandQuery } from "./query-expander";
 import { createSearchQueryPlan, mergeExpandedQueries } from "./query-planner";
-import { buildScopedSearchQuery } from "./query-scope-options";
+import { buildScopedSearchQuery, scopedCampusPrefix, scopedGroupPrefix } from "./query-scope-options";
 import { parseSearchOperators } from "./search-operators";
 
 const RERANK_POOL_MULTIPLIER = 5;
@@ -25,7 +25,7 @@ export class SearchService {
   searchForQuestion(
     query: string,
     limit: number,
-    options: { scope?: QueryScopeOption; includeCustomRules?: boolean } = {},
+    options: { group?: QueryGroupOption; campus?: QueryCampusOption; scope?: QueryGroupOption; includeCustomRules?: boolean } = {},
   ): AskSearchResult {
     const stats = this.db.getStats();
     if (stats.articleCount === 0) {
@@ -34,13 +34,15 @@ export class SearchService {
 
     const safeLimit = clampSearchCandidateLimit(limit);
     const includeCustomRules = options.includeCustomRules !== false;
-    const scopedQuery = buildScopedSearchQuery(query, options.scope);
+    const group = options.group ?? options.scope;
+    const campus = options.campus;
+    const scopedQuery = buildScopedSearchQuery(query, { group, campus });
     const operatorQuery = parseSearchOperators(query);
     const searchPoolLimit = getRerankPoolLimit(safeLimit, 1);
     if (operatorQuery.hasOperators) {
       const result = this.db.searchArticlesByBooleanQuery(query, searchPoolLimit);
       const pool = filterCustomArticles(result.articles, includeCustomRules);
-      const ranked = rankArticlesForQuestion(pool, query, result.highlightTerms, safeLimit, { scope: options.scope });
+      const ranked = rankArticlesForQuestion(pool, query, result.highlightTerms, safeLimit, { group, campus });
       return {
         articles: ranked.articles,
         expandedKeywords: result.highlightTerms,
@@ -58,7 +60,10 @@ export class SearchService {
 
     const plan = createSearchQueryPlan(scopedQuery);
     const expandedVariants = plan.variants.map((variant) => expandQuery(variant));
-    const rankingQueryInfo = mergeExpandedQueries(expanded, expandedVariants, plan.isCompound);
+    const rankingQueryInfo = removeManualScopeRequiredTerms(
+      mergeExpandedQueries(expanded, expandedVariants, plan.isCompound),
+      { group, campus },
+    );
     const plannedPoolLimit = getRerankPoolLimit(safeLimit, plan.variants.length);
     let articles: ArticleRecord[] = [];
 
@@ -107,7 +112,7 @@ export class SearchService {
     }
 
     const sourceFilteredArticles = filterCustomArticles(articles, includeCustomRules);
-    const ranked = rankArticlesForQuestion(sourceFilteredArticles, query, rankingQueryInfo, safeLimit, { scope: options.scope });
+    const ranked = rankArticlesForQuestion(sourceFilteredArticles, query, rankingQueryInfo, safeLimit, { group, campus });
     const suggestedQueries = buildSuggestedQueries(query, ranked.articles, plan.variants);
     return {
       articles: ranked.articles,
@@ -211,6 +216,23 @@ function getRerankPoolLimit(limit: number, variantCount: number): number {
 function filterCustomArticles(articles: ArticleRecord[], includeCustomRules: boolean): ArticleRecord[] {
   if (includeCustomRules) return articles;
   return articles.filter((article) => (article.source_type ?? article.sourceType ?? "official") !== "custom");
+}
+
+function removeManualScopeRequiredTerms(
+  queryInfo: ReturnType<typeof mergeExpandedQueries>,
+  options: { group?: QueryGroupOption; campus?: QueryCampusOption },
+): ReturnType<typeof mergeExpandedQueries> {
+  const manualTerms = new Set(
+    [scopedCampusPrefix(options.campus), scopedGroupPrefix(options.group)]
+      .filter((value): value is string => Boolean(value))
+      .flatMap((value) => value.split(/\s+/u))
+      .filter(Boolean),
+  );
+  if (manualTerms.size === 0) return queryInfo;
+  return {
+    ...queryInfo,
+    requiredTerms: queryInfo.requiredTerms.filter((term) => !manualTerms.has(term)),
+  };
 }
 
 function buildSuggestedQueries(query: string, articles: ArticleRecord[], routeVariants: string[] = []): string[] {

@@ -1,15 +1,21 @@
 import { Database, FolderOpen, KeyRound, Pencil, Plus, Save, Trash2, UserX, X } from "lucide-react";
 import { useEffect, useState } from "react";
-import type { CustomRegulationInput, CustomRegulationRecord, DbStats, QueryScopeOption } from "../../shared/types";
+import type { CustomRegulationInput, CustomRegulationRecord, DbStats, QueryCampusOption, QueryGroupOption } from "../../shared/types";
 import { WarningBox } from "../components/WarningBox";
 import { getErrorMessage, unwrap } from "../lib/api";
 import { PageHeader } from "../components/PageHeader";
 import { StatCard } from "../components/StatCard";
 import { StatusMessage } from "../components/StatusMessage";
-import { QUERY_SCOPE_SELECT_OPTIONS, formatQueryScopeOption } from "../lib/queryScopeOptions";
+import {
+  QUERY_CAMPUS_SELECT_OPTIONS,
+  QUERY_GROUP_SELECT_OPTIONS,
+  formatQueryCampusOption,
+  formatQueryGroupOption,
+} from "../lib/queryScopeOptions";
 
 const DEFAULT_CUSTOM_FORM: CustomRegulationInput = {
   regulationName: "",
+  customCampus: "auto",
   customScope: "undergraduate",
   customNote: "",
   body: "",
@@ -67,6 +73,7 @@ export function DataPage() {
     setEditingCustomId(regulation.id);
     setCustomForm({
       regulationName: regulation.regulation_name,
+      customCampus: regulation.custom_campus ?? "auto",
       customScope: regulation.custom_scope,
       customNote: regulation.custom_note ?? "",
       body: regulation.body ?? "",
@@ -173,12 +180,25 @@ export function DataPage() {
             />
           </label>
           <label className="field-label">
+            적용 캠퍼스
+            <select
+              value={customForm.customCampus ?? "auto"}
+              onChange={(event) => setCustomForm({ ...customForm, customCampus: event.currentTarget.value as QueryCampusOption })}
+            >
+              {QUERY_CAMPUS_SELECT_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="field-label">
             적용 그룹
             <select
               value={customForm.customScope}
-              onChange={(event) => setCustomForm({ ...customForm, customScope: event.currentTarget.value as QueryScopeOption })}
+              onChange={(event) => setCustomForm({ ...customForm, customScope: event.currentTarget.value as QueryGroupOption })}
             >
-              {QUERY_SCOPE_SELECT_OPTIONS.filter((option) => option.value !== "auto").map((option) => (
+              {QUERY_GROUP_SELECT_OPTIONS.filter((option) => option.value !== "auto").map((option) => (
                 <option key={option.value} value={option.value}>
                   {option.label}
                 </option>
@@ -225,7 +245,8 @@ export function DataPage() {
               <div>
                 <strong>{regulation.regulation_name}</strong>
                 <div className="meta-line">
-                  {formatQueryScopeOption(regulation.custom_scope)} · 조항 {regulation.article_count}개 · 수정{" "}
+                  {formatQueryCampusOption(regulation.custom_campus)} / {formatQueryGroupOption(regulation.custom_scope)} · 조항{" "}
+                  {regulation.article_count}개 · 수정{" "}
                   {formatDate(regulation.updated_at)}
                 </div>
                 {regulation.custom_note && <div className="meta-line">{regulation.custom_note}</div>}

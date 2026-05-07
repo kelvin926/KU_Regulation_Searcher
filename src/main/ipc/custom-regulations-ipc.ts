@@ -23,6 +23,7 @@ function validateCustomRegulationInput(input: CustomRegulationInput): CustomRegu
   if (body.length < 10) throw new Error("커스텀 규정 본문은 10자 이상 입력해야 합니다.");
   return {
     regulationName,
+    customCampus: input.customCampus ?? "auto",
     customScope: input.customScope,
     customNote: input.customNote?.trim() ?? "",
     body,

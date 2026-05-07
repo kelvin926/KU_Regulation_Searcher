@@ -1,7 +1,7 @@
-import type { QueryScopeOption } from "../../shared/types";
+import type { QueryCampusOption, QueryGroupOption } from "../../shared/types";
 import type { QueryScope } from "./query-intent";
 
-export function queryScopeFromOption(option?: QueryScopeOption): QueryScope | null {
+export function queryGroupFromOption(option?: QueryGroupOption): QueryScope | null {
   switch (option) {
     case "undergraduate":
       return "학부";
@@ -13,6 +13,16 @@ export function queryScopeFromOption(option?: QueryScopeOption): QueryScope | nu
       return "교원";
     case "staff_assistant":
       return "직원·조교";
+    case "other":
+      return "기타";
+    case "auto":
+    case undefined:
+      return null;
+  }
+}
+
+export function queryCampusFromOption(option?: QueryCampusOption): QueryScope | null {
+  switch (option) {
     case "seoul":
       return "서울캠퍼스";
     case "sejong":
@@ -25,7 +35,7 @@ export function queryScopeFromOption(option?: QueryScopeOption): QueryScope | nu
   }
 }
 
-export function scopedQueryPrefix(option?: QueryScopeOption): string | null {
+export function scopedGroupPrefix(option?: QueryGroupOption): string | null {
   switch (option) {
     case "undergraduate":
       return "학부 학사운영 학칙";
@@ -37,10 +47,6 @@ export function scopedQueryPrefix(option?: QueryScopeOption): string | null {
       return "교원 교수 교원인사 신임교원";
     case "staff_assistant":
       return "직원 조교 직원인사 조교임용";
-    case "seoul":
-      return "서울캠퍼스 안암캠퍼스";
-    case "sejong":
-      return "세종캠퍼스";
     case "other":
       return "기타 내규 지침";
     case "auto":
@@ -49,8 +55,25 @@ export function scopedQueryPrefix(option?: QueryScopeOption): string | null {
   }
 }
 
-export function buildScopedSearchQuery(query: string, option?: QueryScopeOption): string {
-  const prefix = scopedQueryPrefix(option);
-  if (!prefix) return query;
-  return `${prefix} ${query}`;
+export function scopedCampusPrefix(option?: QueryCampusOption): string | null {
+  switch (option) {
+    case "seoul":
+      return "서울캠퍼스 안암캠퍼스 서울";
+    case "sejong":
+      return "세종캠퍼스 세종";
+    case "other":
+      return "기타 캠퍼스 공통";
+    case "auto":
+    case undefined:
+      return null;
+  }
+}
+
+export function buildScopedSearchQuery(
+  query: string,
+  options: { group?: QueryGroupOption; campus?: QueryCampusOption } = {},
+): string {
+  const prefixes = [scopedCampusPrefix(options.campus), scopedGroupPrefix(options.group)].filter(Boolean);
+  if (prefixes.length === 0) return query;
+  return `${prefixes.join(" ")} ${query}`;
 }

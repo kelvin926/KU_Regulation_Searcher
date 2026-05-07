@@ -48,8 +48,10 @@ export interface ArticleRecord {
   fetched_at: string;
   source_type?: RegulationSourceType;
   sourceType?: RegulationSourceType;
-  custom_scope?: QueryScopeOption | null;
-  customScope?: QueryScopeOption | null;
+  custom_scope?: QueryGroupOption | null;
+  customScope?: QueryGroupOption | null;
+  custom_campus?: QueryCampusOption | null;
+  customCampus?: QueryCampusOption | null;
   custom_note?: string | null;
   customNote?: string | null;
   rank?: number;
@@ -59,22 +61,26 @@ export interface ArticleRecord {
 export const REGULATION_SOURCE_TYPE_VALUES = ["official", "custom"] as const;
 export type RegulationSourceType = (typeof REGULATION_SOURCE_TYPE_VALUES)[number];
 
-export const QUERY_SCOPE_OPTION_VALUES = [
+export const QUERY_GROUP_OPTION_VALUES = [
   "auto",
   "undergraduate",
   "general_graduate",
   "professional_special_graduate",
   "faculty",
   "staff_assistant",
-  "seoul",
-  "sejong",
   "other",
 ] as const;
-export type QueryScopeOption = (typeof QUERY_SCOPE_OPTION_VALUES)[number];
+export type QueryGroupOption = (typeof QUERY_GROUP_OPTION_VALUES)[number];
+
+export const QUERY_CAMPUS_OPTION_VALUES = ["auto", "seoul", "sejong", "other"] as const;
+export type QueryCampusOption = (typeof QUERY_CAMPUS_OPTION_VALUES)[number];
+
+export type QueryScopeOption = QueryGroupOption;
 
 export interface CustomRegulationInput {
   regulationName: string;
-  customScope: QueryScopeOption;
+  customScope: QueryGroupOption;
+  customCampus?: QueryCampusOption;
   customNote?: string;
   body: string;
 }
@@ -83,7 +89,8 @@ export interface CustomRegulationRecord {
   id: number;
   regulation_name: string;
   source_url: string;
-  custom_scope: QueryScopeOption;
+  custom_scope: QueryGroupOption;
+  custom_campus: QueryCampusOption | null;
   custom_note: string | null;
   fetched_at: string;
   updated_at: string;
@@ -171,7 +178,9 @@ export interface AiTokenUsage {
 export interface SearchArticlesRequest {
   query: string;
   limit?: number;
-  scope?: QueryScopeOption;
+  scope?: QueryGroupOption;
+  group?: QueryGroupOption;
+  campus?: QueryCampusOption;
   includeCustomRules?: boolean;
 }
 
@@ -188,7 +197,9 @@ export interface AskSearchResult {
 export interface GenerateAnswerRequest {
   question: string;
   articleIds: number[];
-  scope?: QueryScopeOption;
+  scope?: QueryGroupOption;
+  group?: QueryGroupOption;
+  campus?: QueryCampusOption;
   includeCustomRules?: boolean;
 }
 

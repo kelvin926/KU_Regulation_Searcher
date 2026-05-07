@@ -1,21 +1,25 @@
-import type { ArticleRecord, QueryScopeOption } from "../../shared/types";
+import type { ArticleRecord, QueryCampusOption, QueryGroupOption } from "../../shared/types";
 
 export function buildPolicyAnswerPrompt({
   question,
   articles,
-  scope,
+  group,
+  campus,
   includeCustomRules,
 }: {
   question: string;
   articles: ArticleRecord[];
-  scope?: QueryScopeOption;
+  group?: QueryGroupOption;
+  campus?: QueryCampusOption;
   includeCustomRules?: boolean;
 }): string {
   const articleText = articles.map(formatArticleForPrompt).join("\n\n---\n\n");
   const customEvidenceNote = articles.some((article) => (article.source_type ?? article.sourceType ?? "official") === "custom")
     ? "\n- 제공 조항 중 [커스텀 규정]은 사용자가 직접 입력한 학과 내규/부서 내규입니다. 공식 규정과 커스텀 규정이 함께 있으면 둘을 구분해서 설명하고, 충돌 가능성이 있으면 확인 필요하다고 말한다."
     : "";
-  const scopeNote = `\n질의 그룹: ${formatScope(scope)} / 커스텀 규정 포함: ${includeCustomRules === false ? "아니오" : "예"}`;
+  const scopeNote = `\n질의 캠퍼스: ${formatCampus(campus)} / 질의 그룹: ${formatGroup(group)} / 커스텀 규정 포함: ${
+    includeCustomRules === false ? "아니오" : "예"
+  }`;
   return `역할: 고려대학교 규정 질의 보조자.
 
 원칙:
@@ -61,17 +65,20 @@ function formatArticleForPrompt(article: ArticleRecord): string {
   const sourceType = article.source_type ?? article.sourceType ?? "official";
   const sourceLabel = sourceType === "custom" ? "커스텀 규정" : "공식 규정";
   const customScope = article.custom_scope ?? article.customScope;
+  const customCampus = article.custom_campus ?? article.customCampus;
   const customNote = article.custom_note ?? article.customNote;
   return `[ARTICLE_ID: ${article.id}]
-자료 구분: ${sourceLabel}${customScope ? ` / 적용 그룹: ${formatScope(customScope)}` : ""}${customNote ? ` / 메모: ${customNote}` : ""}
+자료 구분: ${sourceLabel}${customCampus ? ` / 적용 캠퍼스: ${formatCampus(customCampus)}` : ""}${
+    customScope ? ` / 적용 그룹: ${formatGroup(customScope)}` : ""
+  }${customNote ? ` / 메모: ${customNote}` : ""}
 규정명: ${article.regulation_name}
 실제 조문번호: ${article.article_no}${title}
 검색 관련도: ${article.relevance?.label ?? "참고"}
 ${compactArticleBody(article.article_body)}`;
 }
 
-function formatScope(scope?: QueryScopeOption | null): string {
-  switch (scope) {
+function formatGroup(group?: QueryGroupOption | null): string {
+  switch (group) {
     case "undergraduate":
       return "학부생";
     case "general_graduate":
@@ -82,6 +89,17 @@ function formatScope(scope?: QueryScopeOption | null): string {
       return "교원/교수";
     case "staff_assistant":
       return "직원/조교";
+    case "other":
+      return "기타";
+    case "auto":
+    case undefined:
+    case null:
+      return "자동 판단";
+  }
+}
+
+function formatCampus(campus?: QueryCampusOption | null): string {
+  switch (campus) {
     case "seoul":
       return "서울캠퍼스";
     case "sejong":

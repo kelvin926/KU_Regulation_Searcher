@@ -1,6 +1,6 @@
 # Windows validation
 
-Validation date: 2026-05-06 KST
+Validation date: 2026-05-07 KST
 Primary environment: Windows 11, PowerShell
 Repository: `https://github.com/kelvin926/KU_Regulation_Searcher`
 Branch: `main`
@@ -10,7 +10,7 @@ Branch: `main`
 | Check | Result |
 | --- | --- |
 | `npm install` | Passed |
-| `npm test` | Passed, 12 files / 60 tests |
+| `npm test` | Passed, 13 files / 65 tests |
 | `npm run eval:local-search:complex` | Passed, 10,000 / 10,000 generated natural-language complex local DB questions |
 | `npm run build` | Passed |
 | `npm run rebuild:electron` | Passed |
@@ -22,9 +22,9 @@ Branch: `main`
 
 | Check | Result |
 | --- | --- |
-| Installer file | `release\KU-Regulation-Setup-0.9.0.exe` |
-| Installer size | 179,162,796 bytes, about 170.9 MiB |
-| SHA-256 | `DFB320FA357ADA41C6B748FD8ACE156CA4A91984323C4CFB27F2B0119658855D` |
+| Installer file | `release\KU-Regulation-Setup-0.9.1.exe` |
+| Installer size | 179,052,992 bytes, about 170.8 MiB |
+| SHA-256 | `75A8D644CBAEC0FF39732E52D3B64D1BB22542890942D1CA789BC818984FBB94` |
 | Install type | Per-user NSIS install |
 | Admin permission | Not required in silent install validation |
 | Install/update success | Passed, exit code 0 |
@@ -36,8 +36,8 @@ Branch: `main`
 | Installer icon | Verified by extracting the associated icon from the setup exe |
 | Packaged exe icon | Verified by extracting the associated icon from `release\win-unpacked\KU Regulation Searcher.exe` |
 | Installed exe icon | Verified by extracting the associated icon from the installed exe |
-| Installed version | `KU Regulation Searcher 0.9.0` in the current-user uninstall registry |
-| App display version | `0.9.0` embedded in the renderer bundle |
+| Installed version | `KU Regulation Searcher 0.9.1` in the current-user uninstall registry |
+| App display version | `0.9.1` embedded in the renderer bundle |
 | SmartScreen | Possible because the installer is unsigned |
 
 Note: this PC already had a pre-0.4.0 install under `%LOCALAPPDATA%\Programs\KU Regulation Assistant`. Updating in place keeps that installation folder for compatibility, but the visible app name, exe name, window title, shortcut name, and icon are `KU Regulation Searcher`. Fresh per-user installs use the current product name.
@@ -56,9 +56,12 @@ Note: this PC already had a pre-0.4.0 install under `%LOCALAPPDATA%\Programs\KU 
 | Legacy migration | `%APPDATA%\KU Regulation Assistant\` is copied to the new 0.4.0 path when needed |
 | Repo data leakage | No repo-root `data`, `auth`, `logs`, `.env`, sqlite, or encrypted session files were created |
 
-## 0.9.0 validation notes
+## 0.9.1 validation notes
 
-- 0.9.0 adds generic natural-language routing for compound regulation questions by splitting scope, topic, procedure, duration, eligibility, comparison, and transition intent.
+- 0.9.1 keeps the compound natural-language routing and separates manual narrowing into two independent controls: campus and query group.
+- Campus can be selected separately from group, so combinations such as `서울캠퍼스 / 학부생` and `세종캠퍼스 / 학부생` are searchable without treating campus as the student's status.
+- Custom regulations now store both applicable campus and applicable group, then participate in the same search index as official regulations.
+- The app header display version, package version, Windows uninstall registry version, and installer filename were checked against `0.9.1`.
 - Search diagnostics now include routing notes and suggested re-search examples when results are broad or weak.
 - Long evidence articles are compacted before being sent to AI, while preserving article identity and the head/tail context needed for citation-grounded answers.
 - Graduate-student withdrawal, advisor-change, military-leave transition, student-council comparison, and new-faculty English lecture questions were checked against the local DB.

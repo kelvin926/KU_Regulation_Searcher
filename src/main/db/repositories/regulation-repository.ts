@@ -97,10 +97,10 @@ export class RegulationRepository {
         .prepare(
           `INSERT INTO regulations (
              regulation_name, regulation_code, department, seq, seq_history, source_url, fetched_at, raw_html_hash,
-             source_type, custom_scope, custom_note, updated_at
+             source_type, custom_scope, custom_campus, custom_note, updated_at
            ) VALUES (
              @regulationName, NULL, NULL, NULL, NULL, @sourceUrl, @now, @rawHtmlHash,
-             'custom', @customScope, @customNote, @now
+             'custom', @customScope, @customCampus, @customNote, @now
            )`,
         )
         .run({
@@ -109,6 +109,7 @@ export class RegulationRepository {
           now,
           rawHtmlHash,
           customScope: input.customScope,
+          customCampus: input.customCampus ?? "auto",
           customNote: input.customNote?.trim() || null,
         });
 
@@ -139,6 +140,7 @@ export class RegulationRepository {
                source_url = @sourceUrl,
                raw_html_hash = @rawHtmlHash,
                custom_scope = @customScope,
+               custom_campus = @customCampus,
                custom_note = @customNote,
                updated_at = @now
            WHERE id = @id AND source_type = 'custom'`,
@@ -149,6 +151,7 @@ export class RegulationRepository {
           sourceUrl,
           rawHtmlHash,
           customScope: input.customScope,
+          customCampus: input.customCampus ?? "auto",
           customNote: input.customNote?.trim() || null,
           now,
         });
@@ -178,6 +181,7 @@ export class RegulationRepository {
                 r.regulation_name,
                 r.source_url,
                 r.custom_scope,
+                r.custom_campus,
                 r.custom_note,
                 r.fetched_at,
                 COALESCE(r.updated_at, r.fetched_at) AS updated_at,
@@ -202,10 +206,10 @@ export class RegulationRepository {
     const statement = this.db.prepare(
       `INSERT INTO articles (
          regulation_id, regulation_name, article_no, article_title, article_body,
-         seq, seq_history, seq_contents, source_url, fetched_at, source_type, custom_scope, custom_note
+         seq, seq_history, seq_contents, source_url, fetched_at, source_type, custom_scope, custom_campus, custom_note
        ) VALUES (
          @regulationId, @regulationName, @articleNo, @articleTitle, @articleBody,
-         NULL, NULL, @seqContents, @sourceUrl, @fetchedAt, 'custom', @customScope, @customNote
+         NULL, NULL, @seqContents, @sourceUrl, @fetchedAt, 'custom', @customScope, @customCampus, @customNote
        )`,
     );
 
@@ -220,6 +224,7 @@ export class RegulationRepository {
         sourceUrl,
         fetchedAt,
         customScope: input.customScope,
+        customCampus: input.customCampus ?? "auto",
         customNote: input.customNote?.trim() || null,
       });
     }
@@ -232,6 +237,7 @@ export class RegulationRepository {
                 r.regulation_name,
                 r.source_url,
                 r.custom_scope,
+                r.custom_campus,
                 r.custom_note,
                 r.fetched_at,
                 COALESCE(r.updated_at, r.fetched_at) AS updated_at,

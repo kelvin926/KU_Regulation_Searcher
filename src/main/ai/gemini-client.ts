@@ -1,5 +1,5 @@
 import { GoogleGenAI } from "@google/genai";
-import type { ArticleRecord, GeneratedAnswer, AiModelId, AiTokenUsage, QueryScopeOption } from "../../shared/types";
+import type { ArticleRecord, GeneratedAnswer, AiModelId, AiTokenUsage, QueryCampusOption, QueryGroupOption } from "../../shared/types";
 import { AppError } from "../../shared/errors";
 import { buildPolicyAnswerPrompt } from "./prompt-builder";
 import { parseAndValidateAnswer } from "./answer-validator";
@@ -23,17 +23,19 @@ export class GeminiClient {
     modelId,
     question,
     articles,
-    scope,
+    group,
+    campus,
     includeCustomRules,
   }: {
     apiKey: string;
     modelId: AiModelId;
     question: string;
     articles: ArticleRecord[];
-    scope?: QueryScopeOption;
+    group?: QueryGroupOption;
+    campus?: QueryCampusOption;
     includeCustomRules?: boolean;
   }): Promise<GeneratedAnswer> {
-    const prompt = buildPolicyAnswerPrompt({ question, articles, scope, includeCustomRules });
+    const prompt = buildPolicyAnswerPrompt({ question, articles, group, campus, includeCustomRules });
     const result = await this.generateRaw({ apiKey, modelId, prompt, responseMimeType: "application/json" });
     return { ...parseAndValidateAnswer(result.text, articles), usage: result.usage };
   }
